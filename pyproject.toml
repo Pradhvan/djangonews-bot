@@ -1,0 +1,11 @@
+[project]
+name = "djangonews-bot"
+version = "0.1.0"
+description = "A bot to coordinate volunteers for writing monthly Updates to Django posts for Django News."
+readme = "README.md"
+requires-python = ">=3.13"
+dependencies = [
+    "arrow>=1.3.0",
+    "discord-py>=2.5.2",
+    "python-dotenv>=1.1.0",
+]
