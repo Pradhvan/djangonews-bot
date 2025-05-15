@@ -33,7 +33,7 @@ class VolunteerCog(commands.Cog):
 
         if not rows:
             return None
-
+        # Add Pagination here so user can see all the dates.
         return "\n".join(
             f"- {arrow.get(row[0]).format('Do MMMM YYYY')}" for row in rows
         )
@@ -48,10 +48,10 @@ class VolunteerCog(commands.Cog):
     ) -> bool:
         query = """
             UPDATE volunteers
-            SET 
-                is_taken = ?, 
+            SET
+                is_taken = ?,
                 name = CASE WHEN ? THEN ? ELSE name END
-            WHERE 
+            WHERE
                 due_date = ? AND (? = 1 OR name = ?)"""
         async with conn.execute(
             query, (is_taken, is_taken, name, date, is_taken, name)
@@ -108,3 +108,77 @@ class VolunteerCog(commands.Cog):
             failure_msg="Could not unassign you. Try again.",
             post_success_note="Please inform folks on django-news channel so others can pick it up.",
         )
+
+    @commands.command(name="mydates")
+    async def get_user_assigned_dates(self, ctx):
+        async with self.cursor.execute(
+            """
+            SELECT due_date, status
+            FROM volunteers
+            WHERE name = ?
+            """,
+            (ctx.author.name,),
+        ) as cursor:
+            rows = await cursor.fetchall()
+
+        if not rows:
+            await ctx.send("You have no assigned dates.")
+            return
+
+        messages = []
+        for due_date, status in rows:
+            date_str = arrow.get(due_date).format("Do MMM YYYY")
+            messages.append(f"Date: `{date_str}`\nStatus: `{status}`")
+
+        output = "\n\n".join(messages)
+        await ctx.send(output)
+
+    @commands.command(name="status")
+    async def get_date_status(self, ctx):
+        current_date = arrow.utcnow().format("YYYY-MM-DD")
+        async with self.cursor.execute(
+            """
+            SELECT due_date, status, name
+            FROM volunteers
+            WHERE due_date >= ? AND is_taken = 1
+            """,
+            (current_date,),
+        ) as cursor:
+            rows = await cursor.fetchall()
+        if not rows:
+            await ctx.send("No upcoming dates has been assigned.")
+            return
+        messages = []
+        for due_date, status, name in rows:
+            date_str = arrow.get(due_date).format("Do MMM YYYY")
+            messages.append(
+                f"Date: `{date_str}`\nStatus: `{status}`\nTaken By: `{name}`"
+            )
+        output = "\n\n".join(messages)
+        await ctx.send(output)
+
+    @commands.command(name="upcoming")
+    async def show_upcoming_dates(self, ctx):
+        current_date = arrow.utcnow().format("YYYY-MM-DD")
+        async with self.cursor.execute(
+            """
+            SELECT name, due_date, status
+            FROM volunteers
+            WHERE due_date > ? AND is_taken = 1
+            """,
+            (current_date,),
+        ) as cursor:
+            rows = await cursor.fetchall()
+
+        if not rows:
+            await ctx.send("No upcoming dates has been assigned.")
+            return
+
+        messages = []
+        for name, due_date, status in rows:
+            date_str = arrow.get(due_date).format("Do MMM YYYY")
+            messages.append(f"Date: `{date_str}`\n Name: `{name}`\nStatus: `{status}`")
+
+        # Add Pagination here so user can see all the dates.
+        output = "\n\n".join(messages)
+        await ctx.send(output)
