@@ -5,6 +5,8 @@ description = "A bot to coordinate volunteers for writing monthly Updates to Dja
 readme = "README.md"
 requires-python = ">=3.13"
 dependencies = [
+    "aiofiles>=24.1.0",
+    "aiosqlite>=0.21.0",
     "arrow>=1.3.0",
     "discord-py>=2.5.2",
     "python-dotenv>=1.1.0",
