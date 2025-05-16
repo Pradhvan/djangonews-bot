@@ -1,5 +1,7 @@
 import asyncio
+import json
 
+import aiofiles
 import aiosqlite
 import arrow
 from discord.ext import commands
@@ -182,3 +184,41 @@ class VolunteerCog(commands.Cog):
         # Add Pagination here so user can see all the dates.
         output = "\n\n".join(messages)
         await ctx.send(output)
+
+    async def _format_report(self, data):
+        total_prs = data.get("total_prs", 0)
+        contributors = len(set(pr["author"] for pr in data["prs"]))
+        first_timers = data.get("first_time_contributors", [])
+        modifying_prs = [pr for pr in data["prs"] if pr["modifies_release"]]
+
+        first_timer_msg = ""
+        if first_timers:
+            names = ", ".join(first_timers)
+            first_timer_msg = f"\n🎉 {len(first_timers)} first-time contributor."
+
+        summary = (
+            f"✅ {total_prs} pull requests were merged by {contributors} contributors."
+            f"{first_timer_msg}"
+        )
+
+        if modifying_prs:
+            summary += (
+                f"\n📦 {len(modifying_prs)} PRs updated the release notes or docs:"
+            )
+            for pr in modifying_prs:
+                summary += f"\n🦄 [{pr['title']}](<{pr['url']}>)"
+
+        return summary
+
+    @commands.command(name="report")
+    async def report(self, ctx):
+        filename = await self.bot.generate_pr_summary()
+        async with aiofiles.open(filename, mode="r") as f:
+            contents = await f.read()
+            pr_data = json.loads(contents)
+        short_summary = await self._format_report(pr_data)
+        last_week = pr_data["date_range_humanized"]
+        discord_summary = await self.bot.disable_link_previews(pr_data["synopsis"])
+        await ctx.send(f"📢 **Django Weekly Summary ({last_week})**")
+        await ctx.send(f"{short_summary}")
+        await ctx.send(f"🧑‍💻 **Synopsis**\n{discord_summary}")

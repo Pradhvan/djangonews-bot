@@ -1,5 +1,6 @@
 import logging
 import os
+import re
 
 import aiofiles
 import aiosqlite
@@ -29,6 +30,17 @@ class VolunteerBot(commands.Bot):
         filename = f"{start_date}-{end_date}_pr.json"
         if not os.path.exists(filename):
             fetch_django_pr_summary()
+        return filename
+
+    async def disable_link_previews(self, text: str) -> str:
+        """
+        Converts all markdown links in the given text from:
+        [text](https://example.com)
+        to:
+        [text](<https://example.com>)
+        which disables Discord's link preview.
+        """
+        return re.sub(r"\[(.*?)\]\((https?://.*?)\)", r"[\1](<\2>)", text)
 
     async def _setup_database(self, db_file_path: str):
         created = not os.path.exists(db_file_path)
