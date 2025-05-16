@@ -45,8 +45,9 @@ class VolunteerCog(commands.Cog):
         response = await self._list_available_dates(self.cursor)
         await ctx.send(response or "No available dates found.")
 
+    @staticmethod
     async def _update_volunteer_status(
-        self, conn: aiosqlite.Connection, date: str, name: str, is_taken: int
+        conn: aiosqlite.Connection, date: str, name: str, is_taken: int
     ) -> bool:
         query = """
             UPDATE volunteers
@@ -79,7 +80,7 @@ class VolunteerCog(commands.Cog):
             )
             is_taken = 1 if action == "assign" else 0
 
-            updated = await self._update_volunteer_status(
+            updated = await VolunteerCog._update_volunteer_status(
                 self.cursor, date, ctx.author.name, is_taken
             )
 
@@ -159,7 +160,8 @@ class VolunteerCog(commands.Cog):
         output = "\n\n".join(messages)
         await ctx.send(output)
 
-    async def _format_report(self, data):
+    @staticmethod
+    async def _format_report(data):
         total_prs = data.get("total_prs", 0)
         contributors = len(set(pr["author"] for pr in data["prs"]))
         first_timers = data.get("first_time_contributors", [])
@@ -167,7 +169,6 @@ class VolunteerCog(commands.Cog):
 
         first_timer_msg = ""
         if first_timers:
-            names = ", ".join(first_timers)
             first_timer_msg = f"\n🎉 {len(first_timers)} first-time contributor."
 
         summary = (
@@ -190,7 +191,7 @@ class VolunteerCog(commands.Cog):
         async with aiofiles.open(filename, mode="r") as f:
             contents = await f.read()
             pr_data = json.loads(contents)
-        short_summary = await self._format_report(pr_data)
+        short_summary = await VolunteerCog._format_report(pr_data)
         last_week = pr_data["date_range_humanized"]
         discord_summary = await self.bot.disable_link_previews(pr_data["synopsis"])
         await ctx.send(f"📢 **Django Weekly Summary ({last_week})**")

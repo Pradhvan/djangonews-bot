@@ -22,9 +22,10 @@ class VolunteerBot(commands.Bot):
         intents = discord.Intents.default()
         intents.message_content = True
         super().__init__(command_prefix="!", intents=intents)
-        self.db_path = os.path.join(os.path.dirname(__file__), DATABASE)
         self.cursor = None
+        self.db_path = os.path.join(os.path.dirname(__file__), DATABASE)
 
+    @staticmethod
     async def generate_pr_summary(self):
         start_date, end_date = get_date_range()
         filename = f"{start_date}-{end_date}_pr.json"
@@ -32,7 +33,8 @@ class VolunteerBot(commands.Bot):
             fetch_django_pr_summary()
         return filename
 
-    async def disable_link_previews(self, text: str) -> str:
+    @staticmethod
+    async def disable_link_previews(text: str) -> str:
         """
         Converts all markdown links in the given text from:
         [text](https://example.com)
@@ -42,7 +44,8 @@ class VolunteerBot(commands.Bot):
         """
         return re.sub(r"\[(.*?)\]\((https?://.*?)\)", r"[\1](<\2>)", text)
 
-    async def _setup_database(self, db_file_path: str):
+    @staticmethod
+    async def _setup_database(db_file_path: str):
         created = not os.path.exists(db_file_path)
 
         async with aiosqlite.connect(db_file_path) as conn:
@@ -66,8 +69,8 @@ class VolunteerBot(commands.Bot):
                 await conn.commit()
 
     async def setup_hook(self):
-        await self.generate_pr_summary()
-        await self._setup_database(self.db_path)
+        await VolunteerBot.generate_pr_summary()
+        await VolunteerBot._setup_database(self.db_path)
         self.cursor = await aiosqlite.connect(self.db_path)
         await self.add_cog(VolunteerCog(self, self.cursor))
 
