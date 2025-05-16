@@ -4,7 +4,6 @@ import json
 import aiofiles
 import aiosqlite
 import arrow
-import logging
 from discord.ext import commands
 
 
@@ -60,10 +59,6 @@ class VolunteerCog(commands.Cog):
                 (current_date,),
         ) as cursor:
             row = await cursor.fetchone()
-            if row:
-                logging.info(f"Next available date found : {row[0]}")
-            else:
-                logging.info(f"No available date.")
             return row[0] if row else None
 
     @commands.command(name="available")
@@ -125,7 +120,6 @@ class VolunteerCog(commands.Cog):
 
     @commands.command(name="volunteer")
     async def volunteer(self, ctx, option: str = None):
-        logging.info(f"Command !volunteer received from {ctx.author.display_name}, option={option}")
         if option and option.lower() == "next":
             next_date = await VolunteerCog._get_next_available_date(self.cursor)
             if not next_date:
