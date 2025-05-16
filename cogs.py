@@ -171,12 +171,13 @@ class VolunteerCog(commands.Cog):
         if option and option.lower() == "next":
             next_date = await VolunteerCog.get_user_first_assigned_date(self.cursor, ctx)
             if not next_date:
-                await ctx.send("You don't have a shift.")
+                await ctx.send("You don't have a shift yet.")
+                return
             await self._handle_volunteer_action(
                 ctx,
                 action="unassign",
                 success_msg="You have been unassigned to {date}.",
-                failure_msg="Could not unassign you to {date}. Try again.",
+                failure_msg="Could not unassign you. Try again.",
                 post_success_note="Please inform folks on django-news channel so others can pick it up.",
                 date=next_date
             )
