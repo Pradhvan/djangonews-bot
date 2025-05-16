@@ -49,7 +49,7 @@ class VolunteerBot(commands.Bot):
             if created:
                 schema_path = os.path.join(os.path.dirname(__file__), "schema.sql")
                 async with aiofiles.open(schema_path, "r") as f:
-                    await conn.executescript(f.read())
+                    await conn.executescript(await f.read())
 
                 now = arrow.utcnow().floor("month")
                 end = arrow.utcnow().ceil("year")
