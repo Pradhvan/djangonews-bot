@@ -12,14 +12,16 @@ class VolunteerCog(commands.Cog):
         self.bot = bot
         self.cursor = cursor
 
-    def _is_date_correct(self, m):
+    @staticmethod
+    def _is_date_correct(m):
         try:
             arrow.get(m.content.strip(), "YYYY-MM-DD")
             return True
         except arrow.parser.ParserMatchError:
             return False
 
-    async def _list_available_dates(self, conn: aiosqlite.Connection) -> str | None:
+    @staticmethod
+    async def _list_available_dates(conn: aiosqlite.Connection) -> str | None:
         current_date = arrow.utcnow().format("YYYY-MM-DD")
 
         async with conn.execute(
@@ -42,7 +44,7 @@ class VolunteerCog(commands.Cog):
 
     @commands.command(name="available")
     async def available(self, ctx):
-        response = await self._list_available_dates(self.cursor)
+        response = await VolunteerCog._list_available_dates(self.cursor)
         await ctx.send(response or "No available dates found.")
 
     @staticmethod
@@ -73,7 +75,7 @@ class VolunteerCog(commands.Cog):
         await ctx.send("Please provide a date in the format YYYY-MM-DD.")
         try:
             response = await self.bot.wait_for(
-                "message", check=self._is_date_correct, timeout=60
+                "message", check=VolunteerCog._is_date_correct, timeout=60
             )
             date = arrow.get(response.content.strip(), "YYYY-MM-DD").format(
                 "YYYY-MM-DD"

@@ -26,7 +26,7 @@ class VolunteerBot(commands.Bot):
         self.db_path = os.path.join(os.path.dirname(__file__), DATABASE)
 
     @staticmethod
-    async def generate_pr_summary(self):
+    async def generate_pr_summary():
         start_date, end_date = get_date_range()
         filename = f"{start_date}-{end_date}_pr.json"
         if not os.path.exists(filename):
