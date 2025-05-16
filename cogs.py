@@ -159,32 +159,6 @@ class VolunteerCog(commands.Cog):
         output = "\n\n".join(messages)
         await ctx.send(output)
 
-    @commands.command(name="upcoming")
-    async def show_upcoming_dates(self, ctx):
-        current_date = arrow.utcnow().format("YYYY-MM-DD")
-        async with self.cursor.execute(
-            """
-            SELECT name, due_date, status
-            FROM volunteers
-            WHERE due_date > ? AND is_taken = 1
-            """,
-            (current_date,),
-        ) as cursor:
-            rows = await cursor.fetchall()
-
-        if not rows:
-            await ctx.send("No upcoming dates has been assigned.")
-            return
-
-        messages = []
-        for name, due_date, status in rows:
-            date_str = arrow.get(due_date).format("Do MMM YYYY")
-            messages.append(f"Date: `{date_str}`\n Name: `{name}`\nStatus: `{status}`")
-
-        # Add Pagination here so user can see all the dates.
-        output = "\n\n".join(messages)
-        await ctx.send(output)
-
     async def _format_report(self, data):
         total_prs = data.get("total_prs", 0)
         contributors = len(set(pr["author"] for pr in data["prs"]))
