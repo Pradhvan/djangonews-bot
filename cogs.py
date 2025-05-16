@@ -161,9 +161,6 @@ class VolunteerCog(commands.Cog):
         ) as cursor:
             row = await cursor.fetchone()
 
-        if not row:
-            await ctx.send("You have no assigned date.")
-
         return row[0] if row else None
 
     @commands.command(name="unvolunteer")
