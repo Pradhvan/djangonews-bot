@@ -83,7 +83,7 @@ class VolunteerCog(commands.Cog):
             is_taken = 1 if action == "assign" else 0
 
             updated = await VolunteerCog._update_volunteer_status(
-                self.cursor, date, ctx.author.name, is_taken
+                self.cursor, date, ctx.author.display_name , is_taken
             )
 
             if updated:
@@ -122,7 +122,7 @@ class VolunteerCog(commands.Cog):
             FROM volunteers
             WHERE name = ?
             """,
-            (ctx.author.name,),
+            (ctx.author.display_name,),
         ) as cursor:
             rows = await cursor.fetchall()
 
