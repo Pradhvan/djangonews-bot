@@ -9,6 +9,7 @@ from discord.ext import commands
 from dotenv import load_dotenv
 
 from cogs import VolunteerCog
+from summary import fetch_django_pr_summary, get_date_range
 
 load_dotenv()
 TOKEN = os.getenv("DISCORD_TOKEN")
@@ -23,7 +24,13 @@ class VolunteerBot(commands.Bot):
         self.db_path = os.path.join(os.path.dirname(__file__), DATABASE)
         self.cursor = None
 
-    async def setup_database(self, db_file_path: str):
+    async def generate_pr_summary(self):
+        start_date, end_date = get_date_range()
+        filename = f"{start_date}-{end_date}_pr.json"
+        if not os.path.exists(filename):
+            fetch_django_pr_summary()
+
+    async def _setup_database(self, db_file_path: str):
         created = not os.path.exists(db_file_path)
 
         async with aiosqlite.connect(db_file_path) as conn:
@@ -47,7 +54,8 @@ class VolunteerBot(commands.Bot):
                 await conn.commit()
 
     async def setup_hook(self):
-        await self.setup_database(self.db_path)
+        await self.generate_pr_summary()
+        await self._setup_database(self.db_path)
         self.cursor = await aiosqlite.connect(self.db_path)
         await self.add_cog(VolunteerCog(self, self.cursor))
 

@@ -1,7 +1,6 @@
 import glob
 import json
 import os
-import sys
 import urllib.parse
 
 import arrow
@@ -13,10 +12,12 @@ def get_date_range():
     now = arrow.utcnow()
     last_monday = now.shift(weeks=-1).floor("week")
     last_sunday = last_monday.shift(days=6)
-    return last_monday, last_sunday
+    return last_monday.format("YYYY-MM-DD"), last_sunday.format("YYYY-MM-DD")
 
 
 def format_date_range_humanized(start, end):
+    start = arrow.get(start, "YYYY-MM-DD")
+    end = arrow.get(end, "YYYY-MM-DD")
     return f"{start.format('MMMM D')} to {end.format('MMMM D, YYYY')}"
 
 
@@ -37,6 +38,19 @@ def identify_first_timers(github_client, merged_prs):
         if user_merged.totalCount <= 2:
             first_timers.append(f"[{user.login}](https://github.com/{user.login})")
     return first_timers
+
+
+def pr_modifies_release_files(github_client, pr_number):
+    repo = github_client.get_repo("django/django")
+    pr = repo.get_pull(pr_number)
+
+    for file in pr.get_files():
+        path = file.filename.lower()
+        if path.startswith("docs/releases/") and (
+            path.endswith(".txt") or path.endswith(".rst")
+        ):
+            return True
+    return False
 
 
 def generate_synopsis(merged_prs, first_timers, search_url):
@@ -71,13 +85,8 @@ def fetch_django_pr_summary():
     github_token = os.getenv("GITHUB_TOKEN")
     github_client = Github(github_token)
 
-    start, end = get_date_range()
-    start_date, end_date = start.format("YYYY-MM-DD"), end.format("YYYY-MM-DD")
+    start_date, end_date = get_date_range()
     filename = f"{start_date}-{end_date}_pr.json"
-
-    if os.path.exists(filename):
-        print(f"File exist: {filename}")
-        sys.exit(0)
 
     query = build_github_search_query(start_date, end_date)
     encoded_query = urllib.parse.quote_plus(query)
@@ -92,15 +101,18 @@ def fetch_django_pr_summary():
         first_timers,
         search_url,
     )
-    pr_data = [
-        {
-            "number": pr.number,
-            "title": pr.title,
-            "author": pr.user.login,
-            "url": pr.html_url,
-        }
-        for pr in merged_prs
-    ]
+    pr_data = []
+    for pr in merged_prs:
+        modifies_release = pr_modifies_release_files(github_client, pr.number)
+        pr_data.append(
+            {
+                "number": pr.number,
+                "title": pr.title,
+                "author": pr.user.login,
+                "url": pr.html_url,
+                "modifies_release": modifies_release,
+            }
+        )
 
     summary_json = {
         "synopsis": synopsis,
@@ -108,14 +120,11 @@ def fetch_django_pr_summary():
         "first_time_contributors_count": len(first_timers),
         "first_time_contributors": first_timers,
         "prs": pr_data,
-        "date_range_humanized": format_date_range_humanized(start, end),
+        "date_range_humanized": format_date_range_humanized(start_date, end_date),
     }
 
-    if not os.path.exists(filename):
-        with open(filename, "w") as f:
-            json.dump(summary_json, f, indent=2)
+    with open(filename, "w") as f:
+        json.dump(summary_json, f, indent=2)
         print(f"Saved: {filename}")
-    else:
-        print(f"File already exists: {filename}")
 
     cleanup_old_json_files(filename)
