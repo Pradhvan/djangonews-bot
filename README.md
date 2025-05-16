@@ -21,12 +21,12 @@ All commands use the prefix `!`. Dates format `YYYY-MM-DD` (example 2025-05-14)
 
 | command         | description                                                           |
 |-----------------|-----------------------------------------------------------------------|
-| `!available`    | List up to 10 available dates for writing shifts (not yet assigned).  |
-| `!volunteer`    | Assign you to a specific date. Date format `YYYY-MM-DD`.              |
+| `!available`    | List up available dates to volunteer   |
+| `!volunteer`    | Assign you to a specific date.              |
 | `!unvolunteer`  | Removes you from a specific date.                                     |
 | `!mydates`      | Shows all dates assigned to you.                                      |
 | `!status`       | Display the status of all assigned dates and who they're assigned to. |
-| `!upcoming`     |  List upcoming assigned dates, showing the assignee and status.       |
+| `!report`       |  last week's data of merged PRs highliting total contributor, first time contributor, Prs that modified release files|
 
 ---
 
