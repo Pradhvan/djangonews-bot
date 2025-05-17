@@ -25,13 +25,13 @@ class VolunteerCog(commands.Cog):
         current_date = arrow.utcnow().format("YYYY-MM-DD")
 
         async with conn.execute(
-                """
+            """
             SELECT due_date
             FROM volunteers
             WHERE due_date > ? AND is_taken = 0
             LIMIT 10
             """,
-                (current_date,),
+            (current_date,),
         ) as cursor:
             rows = await cursor.fetchall()
 
@@ -44,19 +44,19 @@ class VolunteerCog(commands.Cog):
 
     @staticmethod
     async def _get_next_available_date(conn: aiosqlite.Connection) -> str | None:
-        """ Returns the next available date (the closer with is_taken = 0). """
+        """Returns the next available date (the closer with is_taken = 0)."""
 
         current_date = arrow.utcnow().format("YYYY-MM-DD")
 
         async with conn.execute(
-                """
+            """
             SELECT due_date
             FROM volunteers
             WHERE due_date > ? AND is_taken = 0
             ORDER BY due_date ASC
             LIMIT 1
             """,
-                (current_date,),
+            (current_date,),
         ) as cursor:
             row = await cursor.fetchone()
             return row[0] if row else None
@@ -68,7 +68,7 @@ class VolunteerCog(commands.Cog):
 
     @staticmethod
     async def _update_volunteer_status(
-            conn: aiosqlite.Connection, date: str, name: str, is_taken: int
+        conn: aiosqlite.Connection, date: str, name: str, is_taken: int
     ) -> bool:
         query = """
             UPDATE volunteers
@@ -78,19 +78,19 @@ class VolunteerCog(commands.Cog):
             WHERE
                 due_date = ? AND (? = 1 OR name = ?)"""
         async with conn.execute(
-                query, (is_taken, is_taken, name, date, is_taken, name)
+            query, (is_taken, is_taken, name, date, is_taken, name)
         ) as cursor:
             await conn.commit()
             return cursor.rowcount > 0
 
     async def _handle_volunteer_action(
-            self,
-            ctx,
-            action: str,  # "assign" or "unassign"
-            success_msg: str,
-            failure_msg: str,
-            date: str = None,
-            post_success_note: str = "",
+        self,
+        ctx,
+        action: str,  # "assign" or "unassign"
+        success_msg: str,
+        failure_msg: str,
+        date: str = None,
+        post_success_note: str = "",
     ):
         if not date:
             await ctx.send("Please provide a date in the format YYYY-MM-DD.")
@@ -142,7 +142,7 @@ class VolunteerCog(commands.Cog):
 
     @staticmethod
     async def get_user_first_assigned_date(conn: aiosqlite.Connection, ctx):
-        """ Return the next assigned date to the user. """
+        """Return the next assigned date to the user."""
         async with conn.execute(
             """
             SELECT due_date
@@ -151,7 +151,7 @@ class VolunteerCog(commands.Cog):
             ORDER BY due_date ASC
             LIMIT 1
             """,
-                (ctx.author.display_name,),
+            (ctx.author.display_name,),
         ) as cursor:
             row = await cursor.fetchone()
 
@@ -160,7 +160,9 @@ class VolunteerCog(commands.Cog):
     @commands.command(name="unvolunteer")
     async def unvolunteer(self, ctx, option: str = None):
         if option and option.lower() == "next":
-            next_date = await VolunteerCog.get_user_first_assigned_date(self.cursor, ctx)
+            next_date = await VolunteerCog.get_user_first_assigned_date(
+                self.cursor, ctx
+            )
             if not next_date:
                 await ctx.send("You don't have a shift yet.")
                 return
@@ -170,7 +172,7 @@ class VolunteerCog(commands.Cog):
                 success_msg="You have been unassigned to {date}.",
                 failure_msg="Could not unassign you. Try again.",
                 post_success_note="Please inform folks on django-news channel so others can pick it up.",
-                date=next_date
+                date=next_date,
             )
 
         else:
@@ -185,12 +187,12 @@ class VolunteerCog(commands.Cog):
     @commands.command(name="mydates")
     async def get_user_assigned_dates(self, ctx):
         async with self.cursor.execute(
-                """
+            """
             SELECT due_date, status
             FROM volunteers
             WHERE name = ?
             """,
-                (ctx.author.display_name,),
+            (ctx.author.display_name,),
         ) as cursor:
             rows = await cursor.fetchall()
 
@@ -210,12 +212,12 @@ class VolunteerCog(commands.Cog):
     async def get_date_status(self, ctx):
         current_date = arrow.utcnow().format("YYYY-MM-DD")
         async with self.cursor.execute(
-                """
+            """
             SELECT due_date, status, name
             FROM volunteers
             WHERE due_date >= ? AND is_taken = 1
             """,
-                (current_date,),
+            (current_date,),
         ) as cursor:
             rows = await cursor.fetchall()
         if not rows:
@@ -233,7 +235,7 @@ class VolunteerCog(commands.Cog):
     @staticmethod
     async def _format_report(data):
         total_prs = data.get("total_prs", 0)
-        contributors = len(set(pr["author"] for pr in data["prs"]))
+        contributors = len({pr["author"] for pr in data["prs"]})
         first_timers = data.get("first_time_contributors", [])
         modifying_prs = [pr for pr in data["prs"] if pr["modifies_release"]]
 

@@ -54,7 +54,7 @@ def pr_modifies_release_files(github_client, pr_number):
 
 
 def generate_synopsis(merged_prs, first_timers, search_url):
-    unique_contributors = len(set(pr.user.login for pr in merged_prs))
+    unique_contributors = len({pr.user.login for pr in merged_prs})
     synopsis = (
         f"Last week we had [{len(merged_prs)} pull requests]({search_url}) merged into Django by "
         f"{unique_contributors} different contributors"
