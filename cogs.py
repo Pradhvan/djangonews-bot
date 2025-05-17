@@ -190,7 +190,7 @@ class VolunteerCog(commands.Cog):
             """
             SELECT due_date, status
             FROM volunteers
-            WHERE name = ?
+            WHERE name = ? AND is_taken = 1
             """,
             (ctx.author.display_name,),
         ) as cursor:
