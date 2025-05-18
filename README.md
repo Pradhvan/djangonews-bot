@@ -4,7 +4,7 @@ A Discord bot to help coordinate weekly volunteer efforts for the Django News ne
 
 ---
 
-## 📌 Features
+## 🛠️ Features being worked upon
 
 - ✅ List available dates to volunteer
 - 🙋 Volunteer for a specific date
@@ -16,7 +16,7 @@ A Discord bot to help coordinate weekly volunteer efforts for the Django News ne
 
 ---
 
-## Commands
+## Commands that are available
 All commands use the prefix `!`. Dates format `YYYY-MM-DD` (example 2025-05-14)
 
 | command                 | description                                                                                                            | example usage                         |
