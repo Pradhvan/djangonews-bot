@@ -25,10 +25,9 @@ class VolunteerBot(commands.Bot):
         self.cursor = None
         self.db_path = os.path.join(os.path.dirname(__file__), DATABASE)
 
-    @commands.Cog.listener()
-    async def on_command_error(self, ctx, error):
+    async def on_command_error(ctx, error):
         if isinstance(error, commands.CommandNotFound):
-            command_list = [command.name for command in self.bot.commands]
+            command_list = [command.name for command in bot.commands]
             command_list_str = ", ".join(command_list)
 
             await ctx.send(
