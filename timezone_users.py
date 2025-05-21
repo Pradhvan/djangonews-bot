@@ -47,3 +47,10 @@ class TimezoneView(discord.ui.View):
     def __init__(self, cursor):
         super().__init__()
         self.add_item(TimezoneDropdown(cursor))
+
+
+class ListView(discord.ui.View):
+    def __init__(self):
+        super().__init__()
+        url = "https://gist.github.com/Pradhvan/9ce98c4feb25003100b81c496557eff1"
+        self.add_item(discord.ui.Button(label="Timezones List", url=url))

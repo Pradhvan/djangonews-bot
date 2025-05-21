@@ -7,7 +7,7 @@ import aiosqlite
 import arrow
 from discord.ext import commands
 
-from timezone_users import TimezoneView
+from timezone_users import ListView, TimezoneView
 
 
 class VolunteerCog(commands.Cog):
@@ -308,4 +308,7 @@ class VolunteerCog(commands.Cog):
                     )
 
         else:
-            await ctx.send(f"This timezone: {' '.join(args)} is not available.")
+            await ctx.send(
+                f"This timezone: {' '.join(args)} is not available. Check the list",
+                view=ListView(),
+            )
