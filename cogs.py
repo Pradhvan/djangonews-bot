@@ -281,7 +281,9 @@ class VolunteerCog(commands.Cog):
         user_input = "_".join(args).lower()
         available_timezones = zoneinfo.available_timezones()
         cities_tz_id = {
-            k.split("/")[-1].lower(): k if "/" in k else k for k in available_timezones
+            timezone.split("/")[-1].lower(): timezone
+            for timezone in available_timezones
+            if "/" in timezone
         }
         if not user_input:
             view = TimezoneView(self.cursor)
