@@ -28,13 +28,13 @@ class VolunteerCog(commands.Cog):
         current_date = arrow.utcnow().format("YYYY-MM-DD")
 
         async with conn.execute(
-            """
+                """
             SELECT due_date
             FROM volunteers
             WHERE due_date > ? AND is_taken = 0
             LIMIT 10
             """,
-            (current_date,),
+                (current_date,),
         ) as cursor:
             rows = await cursor.fetchall()
 
@@ -52,14 +52,14 @@ class VolunteerCog(commands.Cog):
         current_date = arrow.utcnow().format("YYYY-MM-DD")
 
         async with conn.execute(
-            """
+                """
             SELECT due_date
             FROM volunteers
             WHERE due_date > ? AND is_taken = 0
             ORDER BY due_date ASC
             LIMIT 1
             """,
-            (current_date,),
+                (current_date,),
         ) as cursor:
             row = await cursor.fetchone()
             return row[0] if row else None
@@ -71,7 +71,7 @@ class VolunteerCog(commands.Cog):
 
     @staticmethod
     async def _update_volunteer_status(
-        conn: aiosqlite.Connection, date: str, name: str, is_taken: int
+            conn: aiosqlite.Connection, date: str, name: str, is_taken: int
     ) -> bool:
         query = """
             UPDATE volunteers
@@ -81,19 +81,19 @@ class VolunteerCog(commands.Cog):
             WHERE
                 due_date = ? AND (? = 1 OR name = ?)"""
         async with conn.execute(
-            query, (is_taken, is_taken, name, date, is_taken, name)
+                query, (is_taken, is_taken, name, date, is_taken, name)
         ) as cursor:
             await conn.commit()
             return cursor.rowcount > 0
 
     async def _handle_volunteer_action(
-        self,
-        ctx,
-        action: str,  # "assign" or "unassign"
-        success_msg: str,
-        failure_msg: str,
-        date: str = None,
-        post_success_note: str = "",
+            self,
+            ctx,
+            action: str,  # "assign" or "unassign"
+            success_msg: str,
+            failure_msg: str,
+            date: str = None,
+            post_success_note: str = "",
     ):
         if not date:
             await ctx.send("Please provide a date in the format YYYY-MM-DD.")
@@ -147,14 +147,14 @@ class VolunteerCog(commands.Cog):
     async def get_user_first_assigned_date(conn: aiosqlite.Connection, ctx):
         """Return the next assigned date to the user."""
         async with conn.execute(
-            """
+                """
             SELECT due_date
             FROM volunteers
             WHERE name = ? and is_taken = 1
             ORDER BY due_date ASC
             LIMIT 1
             """,
-            (ctx.author.display_name,),
+                (ctx.author.display_name,),
         ) as cursor:
             row = await cursor.fetchone()
 
@@ -190,12 +190,12 @@ class VolunteerCog(commands.Cog):
     @commands.command(name="mydates")
     async def get_user_assigned_dates(self, ctx):
         async with self.cursor.execute(
-            """
+                """
             SELECT due_date, status
             FROM volunteers
             WHERE name = ? AND is_taken = 1
             """,
-            (ctx.author.display_name,),
+                (ctx.author.display_name,),
         ) as cursor:
             rows = await cursor.fetchall()
 
@@ -215,12 +215,12 @@ class VolunteerCog(commands.Cog):
     async def get_date_status(self, ctx):
         current_date = arrow.utcnow().format("YYYY-MM-DD")
         async with self.cursor.execute(
-            """
+                """
             SELECT due_date, status, name
             FROM volunteers
             WHERE due_date >= ? AND is_taken = 1
             """,
-            (current_date,),
+                (current_date,),
         ) as cursor:
             rows = await cursor.fetchall()
         if not rows:
@@ -274,27 +274,25 @@ class VolunteerCog(commands.Cog):
         await ctx.send(f"🧑‍💻 **Synopsis**\n{discord_summary}")
 
     @commands.command(name="settimezone")
-    async def set_timezone(self, ctx,  *args):
+    async def set_timezone(self, ctx, *args):
         """
         Set a timezone from a list, or based on your input.
         """
-        user_input = ' '.join(args)
-        timezone_sanitized = user_input.lower().replace(" ", "_")
-        available_timezones = list(zoneinfo.available_timezones())
-        available_timezones_sanitized = [el.lower() for el in available_timezones]
+        user_input = '_'.join(args).lower()
+        available_timezones = zoneinfo.available_timezones()
         if not user_input:
             view = TimezoneView(self.cursor)
             await ctx.send("Select your timezone", view=view)
         else:
-            cities = [tz.split('/')[-1] if '/' in tz else tz for tz in available_timezones_sanitized]
-            if timezone_sanitized in cities:
-                tz_identifier = available_timezones[cities.index(timezone_sanitized)]
+            cities_tz_id = {k.split('/')[-1].lower(): k if '/' in k else k for k in available_timezones}
+            if user_input in cities_tz_id.keys():
+                tz_identifier = cities_tz_id[user_input]
                 user_name = ctx.author.display_name
                 query = """
-                    UPDATE volunteers
-                    SET timezone = ?
-                    WHERE name = ? AND is_taken = 1
-                 """
+                            UPDATE volunteers
+                            SET timezone = ?
+                            WHERE name = ? AND is_taken = 1
+                         """
                 async with self.cursor.execute(
                         query, (tz_identifier, user_name)
                 ) as cur:
@@ -305,4 +303,4 @@ class VolunteerCog(commands.Cog):
                         await ctx.send("Error: timezone not updated. Try to volunteer first. ")
 
             else:
-                await ctx.send(f"This timezone: {user_input} is not available.")
+                await ctx.send(f"This timezone: {' '.join(args)} is not available.")
