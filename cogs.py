@@ -280,27 +280,26 @@ class VolunteerCog(commands.Cog):
         """
         user_input = '_'.join(args).lower()
         available_timezones = zoneinfo.available_timezones()
+        cities_tz_id = {k.split('/')[-1].lower(): k if '/' in k else k for k in available_timezones}
         if not user_input:
             view = TimezoneView(self.cursor)
             await ctx.send("Select your timezone", view=view)
-        else:
-            cities_tz_id = {k.split('/')[-1].lower(): k if '/' in k else k for k in available_timezones}
-            if user_input in cities_tz_id.keys():
-                tz_identifier = cities_tz_id[user_input]
-                user_name = ctx.author.display_name
-                query = """
-                            UPDATE volunteers
-                            SET timezone = ?
-                            WHERE name = ? AND is_taken = 1
-                         """
-                async with self.cursor.execute(
-                        query, (tz_identifier, user_name)
-                ) as cur:
-                    await self.cursor.commit()
-                    if cur.rowcount > 0:
-                        await ctx.send(f"Your timezone is set to **{tz_identifier}** ", )
-                    else:
-                        await ctx.send("Error: timezone not updated. Try to volunteer first. ")
+        elif user_input in cities_tz_id.keys():
+            tz_identifier = cities_tz_id[user_input]
+            user_name = ctx.author.display_name
+            query = """
+                        UPDATE volunteers
+                        SET timezone = ?
+                        WHERE name = ? AND is_taken = 1
+                     """
+            async with self.cursor.execute(
+                    query, (tz_identifier, user_name)
+            ) as cur:
+                await self.cursor.commit()
+                if cur.rowcount > 0:
+                    await ctx.send(f"Your timezone is set to **{tz_identifier}** ", )
+                else:
+                    await ctx.send("Error: timezone not updated. Try to volunteer first. ")
 
-            else:
-                await ctx.send(f"This timezone: {' '.join(args)} is not available.")
+        else:
+            await ctx.send(f"This timezone: {' '.join(args)} is not available.")
