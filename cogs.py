@@ -4,7 +4,10 @@ import json
 import aiofiles
 import aiosqlite
 import arrow
+import zoneinfo
 from discord.ext import commands
+
+from timezone_users import TimezoneView
 
 
 class VolunteerCog(commands.Cog):
@@ -269,3 +272,37 @@ class VolunteerCog(commands.Cog):
         await ctx.send(f"📢 **Django Weekly Summary ({last_week})**")
         await ctx.send(f"{short_summary}")
         await ctx.send(f"🧑‍💻 **Synopsis**\n{discord_summary}")
+
+    @commands.command(name="settimezone")
+    async def set_timezone(self, ctx,  *args):
+        """
+        Set a timezone from a list, or based on your input.
+        """
+        user_input = ' '.join(args)
+        timezone_sanitized = user_input.lower().replace(" ", "_")
+        available_timezones = list(zoneinfo.available_timezones())
+        available_timezones_sanitized = [el.lower() for el in available_timezones]
+        if not user_input:
+            view = TimezoneView(self.cursor)
+            await ctx.send("Select your timezone", view=view)
+        else:
+            cities = [tz.split('/')[-1] if '/' in tz else tz for tz in available_timezones_sanitized]
+            if timezone_sanitized in cities:
+                tz_identifier = available_timezones[cities.index(timezone_sanitized)]
+                user_name = ctx.author.display_name
+                query = """
+                    UPDATE volunteers
+                    SET timezone = ?
+                    WHERE name = ? AND is_taken = 1
+                 """
+                async with self.cursor.execute(
+                        query, (tz_identifier, user_name)
+                ) as cur:
+                    await self.cursor.commit()
+                    if cur.rowcount > 0:
+                        await ctx.send(f"Your timezone is set to **{tz_identifier}** ", )
+                    else:
+                        await ctx.send(f"Error: timezone not updated. You don't have any shift yet. ")
+
+            else:
+                await ctx.send(f"This timezone: {user_input} is not available.")
