@@ -302,7 +302,7 @@ class VolunteerCog(commands.Cog):
                     if cur.rowcount > 0:
                         await ctx.send(f"Your timezone is set to **{tz_identifier}** ", )
                     else:
-                        await ctx.send(f"Error: timezone not updated. You don't have any shift yet. ")
+                        await ctx.send("Error: timezone not updated. Try to volunteer first. ")
 
             else:
                 await ctx.send(f"This timezone: {user_input} is not available.")
