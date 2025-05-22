@@ -69,7 +69,7 @@ class VolunteerBot(commands.Bot):
                 await conn.commit()
 
     async def setup_hook(self):
-        # await VolunteerBot.generate_pr_summary()
+        await VolunteerBot.generate_pr_summary()
         await VolunteerBot._setup_database(self.db_path)
         self.cursor = await aiosqlite.connect(self.db_path)
         await self.add_cog(VolunteerCog(self, self.cursor))
