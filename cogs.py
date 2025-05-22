@@ -1,10 +1,13 @@
 import asyncio
 import json
+import zoneinfo
 
 import aiofiles
 import aiosqlite
 import arrow
 from discord.ext import commands
+
+from views import TimezoneView
 
 
 class VolunteerCog(commands.Cog):
@@ -269,3 +272,43 @@ class VolunteerCog(commands.Cog):
         await ctx.send(f"📢 **Django Weekly Summary ({last_week})**")
         await ctx.send(f"{short_summary}")
         await ctx.send(f"🧑‍💻 **Synopsis**\n{discord_summary}")
+
+    @commands.command(name="settimezone")
+    async def set_timezone(self, ctx, *args):
+        """
+        Set a timezone from a list, or based on your input.
+        """
+        user_input = "_".join(args).lower()
+        available_timezones = zoneinfo.available_timezones()
+        cities_tz_id = {
+            timezone.split("/")[-1].lower(): timezone
+            for timezone in available_timezones
+            if "/" in timezone
+        }
+        if not user_input:
+            view = TimezoneView(self.cursor)
+            await ctx.send("Select your timezone", view=view)
+        elif user_input in cities_tz_id.keys():
+            tz_identifier = cities_tz_id[user_input]
+            user_name = ctx.author.display_name
+            query = """
+                        UPDATE volunteers
+                        SET timezone = ?
+                        WHERE name = ? AND is_taken = 1
+                     """
+            async with self.cursor.execute(query, (tz_identifier, user_name)) as cur:
+                await self.cursor.commit()
+                if cur.rowcount > 0:
+                    await ctx.send(
+                        f"Your timezone is set to **{tz_identifier}** ",
+                    )
+                else:
+                    await ctx.send(
+                        "Error: timezone not updated. Try to volunteer first. "
+                    )
+
+        else:
+            await ctx.send(
+                "Sorry, we don't support that timezone at the moment. \n"
+                "Here is a list of timezones we [support](<https://gist.github.com/Pradhvan/9ce98c4feb25003100b81c496557eff1>)."
+            )

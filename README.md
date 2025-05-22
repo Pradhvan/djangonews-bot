@@ -19,14 +19,15 @@ A Discord bot to help coordinate weekly volunteer efforts for the Django News ne
 ## Commands that are available
 All commands use the prefix `!`. Dates format `YYYY-MM-DD` (example 2025-05-14)
 
-| command                 | description                                                                                                            | example usage                         |
-|-------------------------|------------------------------------------------------------------------------------------------------------------------|---------------------------------------|
-| `!available`            | List up available dates to volunteer                                                                                   |                                       |
-| `!volunteer [option]`   | Assign you to a specific date. If the `next` option is specified you're assigned to the next available date.           | `!volunteer `<br>`!volunteer next`    |
-| `!unvolunteer [option]` | Removes you from a specific date. If the `next` option is specified you're unassigned to your next available shift.    | `!unvolunteer`<br>`!unvolunteer next` |
-| `!mydates`              | Shows all dates assigned to you.                                                                                       |                                       |
-| `!status`               | Display the status of all assigned dates and who they're assigned to.                                                  |                                       |
-| `!report`               | last week's data of merged PRs highlighting total contributor, first time contributor, Prs that modified release files |                                       |
+| command                 | description                                                                                                            | example usage                                                  |
+|-------------------------|------------------------------------------------------------------------------------------------------------------------|----------------------------------------------------------------|
+| `!available`            | List up available dates to volunteer                                                                                   |                                                                |
+| `!volunteer [option]`   | Assign you to a specific date. If the `next` option is specified you're assigned to the next available date.           | `!volunteer `<br>`!volunteer next`                             |
+| `!unvolunteer [option]` | Removes you from a specific date. If the `next` option is specified you're unassigned to your next available shift.    | `!unvolunteer`<br>`!unvolunteer next`                          |
+| `!mydates`              | Shows all dates assigned to you.                                                                                       |                                                                |
+| `!status`               | Display the status of all assigned dates and who they're assigned to.                                                  |                                                                |
+| `!report`               | last week's data of merged PRs highlighting total contributor, first time contributor, Prs that modified release files |                                                                |
+| `!settimezone [option]` | Set your timezone. Type as option a name of your city or abbreviations.                                                | `!settimezone`<br>`!settimezone gmt+4`<br>`!settimezone paris` |
 
 ---
 
