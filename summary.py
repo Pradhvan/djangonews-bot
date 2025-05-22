@@ -3,6 +3,7 @@ import json
 import os
 import subprocess
 import urllib.parse
+from shlex import split as shlex_split
 
 import arrow
 
@@ -26,11 +27,23 @@ def build_github_search_query(start_date, end_date):
 
 def send_command(command):
     """Execute a GitHub CLI command and return the JSON result"""
-    process = subprocess.Popen(command, shell=True, stdout=subprocess.PIPE)
+    # Split the command string into a list of arguments to avoid shell=True
+    command_args = shlex_split(command)
+
+    process = subprocess.Popen(
+        command_args,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        shell=False,  # Explicitly set shell=False for security
+    )
+
     output, error = process.communicate()
 
-    if error:
-        raise Exception(error)
+    if error and error.strip():
+        error_text = error.decode("utf-8")
+        print(f"Warning: Command produced error output: {error_text}")
+        if process.returncode != 0:
+            raise Exception(f"Command failed with error: {error_text}")
 
     return json.loads(output.decode("utf-8"))
 
