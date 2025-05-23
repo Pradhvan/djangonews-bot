@@ -8,13 +8,6 @@ from shlex import split as shlex_split
 import arrow
 
 
-def get_date_range():
-    now = arrow.utcnow()
-    last_monday = now.shift(weeks=-1).floor("week")
-    last_sunday = last_monday.shift(days=6)
-    return last_monday.format("YYYY-MM-DD"), last_sunday.format("YYYY-MM-DD")
-
-
 def format_date_range_humanized(start, end):
     start = arrow.get(start, "YYYY-MM-DD")
     end = arrow.get(end, "YYYY-MM-DD")
@@ -194,15 +187,11 @@ def cleanup_old_json_files(current_filename):
             print(f"Deleted old file: {f}")
 
 
-def fetch_django_pr_summary():
+def fetch_django_pr_summary(start_date, end_date, filename):
     """
     Fetches the merged pull requests from the Django repository on GitHub for the last week,
     identifies first-time contributors, and generates a summary JSON file.
     """
-
-    start_date, end_date = get_date_range()
-    filename = f"{start_date}-{end_date}_pr.json"
-
     query = build_github_search_query(start_date, end_date)
     encoded_query = urllib.parse.quote_plus(query)
     search_url = f"https://github.com/search?q={encoded_query}"
