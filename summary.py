@@ -1,6 +1,7 @@
 import glob
 import json
 import os
+import re
 import subprocess
 import urllib.parse
 from shlex import split as shlex_split
@@ -12,6 +13,40 @@ def format_date_range_humanized(start, end):
     start = arrow.get(start, "YYYY-MM-DD")
     end = arrow.get(end, "YYYY-MM-DD")
     return f"{start.format('MMMM D')} to {end.format('MMMM D, YYYY')}"
+
+
+def validate_pr_filename(filename, start_date=None, end_date=None):
+    """
+    Validates a PR summary filename for security and format correctness.
+
+    Args:
+        filename: The filename to validate
+        start_date: Optional start date to check for consistency with filename
+        end_date: Optional end date to check for consistency with filename
+
+    Returns:
+        A safe filename (basename only) if valid
+
+    Raises:
+        ValueError: If the filename is invalid or doesn't match the expected format
+    """
+    # Check if filename has the correct format
+    pattern = r"^\d{4}-\d{2}-\d{2}-\d{4}-\d{2}-\d{2}_pr\.json$"
+    if not re.match(pattern, os.path.basename(filename)):
+        raise ValueError(
+            f"Invalid filename format: {filename}. Expected format: YYYY-MM-DD-YYYY-MM-DD_pr.json"
+        )
+
+    # If dates are provided, ensure filename is consistent with them
+    if start_date and end_date:
+        expected_filename = f"{start_date}-{end_date}_pr.json"
+        if os.path.basename(filename) != expected_filename:
+            raise ValueError(
+                f"Filename {filename} doesn't match the expected format for dates {start_date} to {end_date}"
+            )
+
+    # Return only the basename to prevent path traversal
+    return os.path.basename(filename)
 
 
 def build_github_search_query(start_date, end_date):
@@ -181,10 +216,21 @@ def generate_synopsis(merged_prs, first_timers, search_url):
 
 
 def cleanup_old_json_files(current_filename):
+    # Ensure we're only dealing with the basename to prevent directory traversal
+
     for f in glob.glob("*_pr.json"):
-        if f != current_filename:
-            os.remove(f)
-            print(f"Deleted old file: {f}")
+        # Only delete files that match our expected pattern and aren't the current file
+        try:
+            if f != current_filename and os.path.dirname(f) == "":
+                # Validate the file before deleting it
+                validate_pr_filename(f)
+                os.remove(f)
+                print(f"Deleted old file: {f}")
+        except ValueError:
+            # Skip files that don't match our expected format
+            print(f"Skipping invalid file: {f}")
+        except Exception as e:
+            print(f"Error deleting file {f}: {str(e)}")
 
 
 def fetch_django_pr_summary(start_date, end_date, filename):
@@ -192,6 +238,7 @@ def fetch_django_pr_summary(start_date, end_date, filename):
     Fetches the merged pull requests from the Django repository on GitHub for the last week,
     identifies first-time contributors, and generates a summary JSON file.
     """
+
     query = build_github_search_query(start_date, end_date)
     encoded_query = urllib.parse.quote_plus(query)
     search_url = f"https://github.com/search?q={encoded_query}"
@@ -230,8 +277,18 @@ def fetch_django_pr_summary(start_date, end_date, filename):
         "date_range_humanized": format_date_range_humanized(start_date, end_date),
     }
 
-    with open(filename, "w") as f:
-        json.dump(summary_json, f, indent=2)
-        print(f"Saved: {filename}")
+    # Validate the filename with error handling
+    try:
+        safe_filename = validate_pr_filename(filename, start_date, end_date)
+    except ValueError as e:
+        # Log the error but continue with the original filename
+        print(f"Warning: {str(e)}")
+        print(f"Using original filename as fallback")
+        safe_filename = os.path.basename(filename)
 
-    cleanup_old_json_files(filename)
+    # Use the safe filename for writing
+    with open(safe_filename, "w") as f:
+        json.dump(summary_json, f, indent=2)
+        print(f"Saved: {safe_filename}")
+
+    cleanup_old_json_files(safe_filename)
