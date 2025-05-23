@@ -283,7 +283,7 @@ def fetch_django_pr_summary(start_date, end_date, filename):
     except ValueError as e:
         # Log the error but continue with the original filename
         print(f"Warning: {str(e)}")
-        print(f"Using original filename as fallback")
+        print(f"Using original filename: {filename} as fallback")
         safe_filename = os.path.basename(filename)
 
     # Use the safe filename for writing
