@@ -10,7 +10,7 @@ from discord.ext import commands
 from dotenv import load_dotenv
 
 from cogs import VolunteerCog
-from summary import fetch_django_pr_summary, get_date_range
+from summary import fetch_django_pr_summary
 
 load_dotenv()
 TOKEN = os.getenv("DISCORD_TOKEN")
@@ -27,10 +27,19 @@ class VolunteerBot(commands.Bot):
 
     @staticmethod
     async def generate_pr_summary():
-        start_date, end_date = get_date_range()
+        # Get last week's date range using Arrow's span feature
+        last_week = arrow.utcnow().shift(weeks=-1)
+        last_monday, last_sunday = last_week.span("week")
+
+        # Format dates for filename and API calls
+        start_date = last_monday.format("YYYY-MM-DD")
+        end_date = last_sunday.format("YYYY-MM-DD")
         filename = f"{start_date}-{end_date}_pr.json"
+
         if not os.path.exists(filename):
-            fetch_django_pr_summary()
+            fetch_django_pr_summary(
+                start_date=start_date, end_date=end_date, filename=filename
+            )
         return filename
 
     @staticmethod
@@ -69,7 +78,7 @@ class VolunteerBot(commands.Bot):
                 await conn.commit()
 
     async def setup_hook(self):
-        # await VolunteerBot.generate_pr_summary()
+        await VolunteerBot.generate_pr_summary()
         await VolunteerBot._setup_database(self.db_path)
         self.cursor = await aiosqlite.connect(self.db_path)
         await self.add_cog(VolunteerCog(self, self.cursor))
