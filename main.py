@@ -25,6 +25,18 @@ class VolunteerBot(commands.Bot):
         self.cursor = None
         self.db_path = os.path.join(os.path.dirname(__file__), DATABASE)
 
+    async def on_command_error(ctx, error):
+        if isinstance(error, commands.CommandNotFound):
+            command_list = [command.name for command in bot.commands]
+            command_list_str = ", ".join(command_list)
+
+            await ctx.send(
+                f"Command not found: '{ctx.message.content}'. "
+                f"Try one of this following commands: {command_list_str}"
+            )
+        else:
+            await ctx.send(f"There was an error: {str(error)}")
+
     @staticmethod
     async def generate_pr_summary():
         # Get last week's date range using Arrow's span feature

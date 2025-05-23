@@ -66,6 +66,9 @@ class VolunteerCog(commands.Cog):
 
     @commands.command(name="available")
     async def available(self, ctx):
+        """
+        List of the available dates.
+        """
         response = await VolunteerCog._list_available_dates(self.cursor)
         await ctx.send(response or "No available dates found.")
 
@@ -123,6 +126,14 @@ class VolunteerCog(commands.Cog):
 
     @commands.command(name="volunteer")
     async def volunteer(self, ctx, option: str = None):
+        """
+        Volunteer for an available date.
+        Parameters
+        ----------
+        option : str, optional
+            `next` to volunteer for the next available date.
+
+        """
         if option and option.lower() == "next":
             next_date = await VolunteerCog._get_next_available_date(self.cursor)
             if not next_date:
@@ -162,6 +173,14 @@ class VolunteerCog(commands.Cog):
 
     @commands.command(name="unvolunteer")
     async def unvolunteer(self, ctx, option: str = None):
+        """
+        Unvolunteer from a shift.
+        Parameters
+        ----------
+        option : str, optional
+            `next` to unvoluneer for your next assigned date.
+
+        """
         if option and option.lower() == "next":
             next_date = await VolunteerCog.get_user_first_assigned_date(
                 self.cursor, ctx
@@ -189,6 +208,9 @@ class VolunteerCog(commands.Cog):
 
     @commands.command(name="mydates")
     async def get_user_assigned_dates(self, ctx):
+        """
+        List of personal assigned dates.
+        """
         async with self.cursor.execute(
             """
             SELECT due_date, status
@@ -213,6 +235,9 @@ class VolunteerCog(commands.Cog):
 
     @commands.command(name="status")
     async def get_date_status(self, ctx):
+        """
+        All status of all assigned dates.
+        """
         current_date = arrow.utcnow().format("YYYY-MM-DD")
         async with self.cursor.execute(
             """
@@ -262,6 +287,9 @@ class VolunteerCog(commands.Cog):
 
     @commands.command(name="report")
     async def report(self, ctx):
+        """
+        Build a draft report.
+        """
         filename = await self.bot.generate_pr_summary()
         async with aiofiles.open(filename, mode="r") as f:
             contents = await f.read()
