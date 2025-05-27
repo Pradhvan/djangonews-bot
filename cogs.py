@@ -261,7 +261,7 @@ class VolunteerCog(commands.Cog):
         return summary
 
     @commands.command(name="report")
-    async def report(self, ctx):
+    async def report(self, ctx, md: str = None):
         filename = await self.bot.generate_pr_summary()
         async with aiofiles.open(filename, mode="r") as f:
             contents = await f.read()
@@ -269,9 +269,15 @@ class VolunteerCog(commands.Cog):
         short_summary = await VolunteerCog._format_report(pr_data)
         last_week = pr_data["date_range_humanized"]
         discord_summary = await self.bot.disable_link_previews(pr_data["synopsis"])
-        await ctx.send(f"📢 **Django Weekly Summary ({last_week})**")
-        await ctx.send(f"{short_summary}")
-        await ctx.send(f"🧑‍💻 **Synopsis**\n{discord_summary}")
+        if md and md.lower() == 'md':
+            await ctx.send(
+                f"```Today 'Updates to Django' is presented by [your name her](your social or linkedin) from "
+                f"the [Djangonaut Space](https://djangonaut.space/)!🚀"
+                f"\n\n{discord_summary}```")
+        else:
+            await ctx.send(f"📢 **Django Weekly Summary ({last_week})**")
+            await ctx.send(f"{short_summary}")
+            await ctx.send(f"🧑‍💻 **Synopsis**\n{discord_summary}")
 
     @commands.command(name="settimezone")
     async def set_timezone(self, ctx, *args):
