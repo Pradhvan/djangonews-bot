@@ -207,8 +207,9 @@ def generate_synopsis(merged_prs, first_timers, search_url):
             )
 
         synopsis += (
-            f" – including {len(first_timers)} first time contributors! "
-            f"Congratulations to {contributors_text} for having their first commits merged into Django – welcome on board!"
+            f" – including {len(first_timers)} first time contributor{'s' if len(first_timers) > 1 else ''}! "
+            f"Congratulations to {contributors_text} for having their first "
+            f"commit{'s' if len(first_timers) > 1 else ''} merged into Django – welcome on board!"
         )
     else:
         synopsis += "."
