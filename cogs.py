@@ -260,18 +260,39 @@ class VolunteerCog(commands.Cog):
 
         return summary
 
+    @staticmethod
+    async def _format_list_prs(data):
+        modifying_prs = [pr for pr in data["prs"] if pr["modifies_release"]]
+        list_modifying_prs = "There are no PRs that modify the release."
+
+        if modifying_prs:
+            list_modifying_prs = ""
+            for pr in modifying_prs:
+                list_modifying_prs += f"\n🦄 [{pr['title']}](<{pr['url']}>)"
+
+        return list_modifying_prs
+
     @commands.command(name="report")
-    async def report(self, ctx):
+    async def report(self, ctx, md: str = None):
         filename = await self.bot.generate_pr_summary()
         async with aiofiles.open(filename, mode="r") as f:
             contents = await f.read()
             pr_data = json.loads(contents)
         short_summary = await VolunteerCog._format_report(pr_data)
+        list_modifiying_prs = await VolunteerCog._format_list_prs(pr_data)
         last_week = pr_data["date_range_humanized"]
         discord_summary = await self.bot.disable_link_previews(pr_data["synopsis"])
-        await ctx.send(f"📢 **Django Weekly Summary ({last_week})**")
-        await ctx.send(f"{short_summary}")
-        await ctx.send(f"🧑‍💻 **Synopsis**\n{discord_summary}")
+        if md and md.lower() == "md":
+            await ctx.send(
+                f"```Today 'Updates to Django' is presented by [your name her](your social or linkedin) from "
+                f"the [Djangonaut Space](https://djangonaut.space/)!🚀"
+                f"\n\n{discord_summary}```"
+                f"\n{list_modifiying_prs}"
+            )
+        else:
+            await ctx.send(f"📢 **Django Weekly Summary ({last_week})**")
+            await ctx.send(f"{short_summary}")
+            await ctx.send(f"🧑‍💻 **Synopsis**\n{discord_summary}")
 
     @commands.command(name="settimezone")
     async def set_timezone(self, ctx, *args):
