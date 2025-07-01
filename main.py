@@ -10,7 +10,7 @@ from discord.ext import commands
 from dotenv import load_dotenv
 
 from cogs import VolunteerCog
-from summary import fetch_django_pr_summary
+from summary import fetch_django_pr_summary, get_django_welcome_message
 
 load_dotenv()
 TOKEN = os.getenv("DISCORD_TOKEN")
@@ -23,6 +23,7 @@ class VolunteerBot(commands.Bot):
         intents.message_content = True
         super().__init__(command_prefix="!", intents=intents)
         self.cursor = None
+        self.django_welcome_phrases = None
         self.db_path = os.path.join(os.path.dirname(__file__), DATABASE)
 
     @staticmethod
@@ -78,6 +79,17 @@ class VolunteerBot(commands.Bot):
                 await conn.commit()
 
     async def setup_hook(self):
+        # Get and cache Django's welcome message
+        welcome_phrases = get_django_welcome_message()
+
+        if not welcome_phrases:
+            # log these
+            print("Cannot fetch Django welcome message")
+            print("Check GitHub CLI authentication and network connectivity")
+
+        # Store it as an instance variable for summary.py to use
+        self.django_welcome_phrases = welcome_phrases
+
         await VolunteerBot.generate_pr_summary()
         await VolunteerBot._setup_database(self.db_path)
         self.cursor = await aiosqlite.connect(self.db_path)
