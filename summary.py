@@ -125,47 +125,148 @@ def get_full_name_contributors(first_timers):
     return updated_contributors
 
 
-def identify_first_timers(merged_prs, end_date):
-    """Identify first-time contributors using GitHub CLI"""
+def get_django_welcome_message():
+    """Get Django's current new contributor message, with caching"""
+    cache_file = "django_welcome_cache.json"
+
+    # Get current SHA from GitHub first
+    try:
+        command = "gh api repos/django/django/contents/.github/workflows/new_contributor_pr.yml"
+        result = send_command(command)
+        current_sha = result.get("sha", "unknown")
+    except Exception as e:
+        print(f"Error getting current SHA: {e}")
+        return ""
+
+    # Check cache and compare SHA
+    if os.path.exists(cache_file):
+        try:
+            with open(cache_file, "r") as f:
+                cached_data = json.load(f)
+
+            cached_sha = cached_data.get("commit_sha", "")
+
+            if cached_sha == current_sha and current_sha != "unknown":
+                print(f"Cache up-to-date (SHA: {current_sha[:8]}...)")
+                return cached_data.get("pr_message", "")
+            else:
+                print(f"SHA changed: {cached_sha[:8]}... → {current_sha[:8]}...")
+        except Exception as e:
+            print(f"Cache read error: {e}")
+
+    # Fetch from GitHub (cache missing or SHA changed)
+    try:
+        print("Fetching Django workflow...")
+
+        # Decode and find pr-message
+        import base64
+
+        content = base64.b64decode(result["content"]).decode("utf-8")
+
+        # Parse pr-message
+        lines = content.split("\n")
+        pr_message = ""
+
+        for i, line in enumerate(lines):
+            if "pr-message:" in line:
+                if "|" in line:  # Multi-line YAML
+                    # Read the actual message content
+                    message_parts = []
+                    for j in range(i + 1, len(lines)):
+                        next_line = lines[j]
+                        if next_line.strip() and not next_line.startswith("  "):
+                            break
+                        if next_line.strip():
+                            message_parts.append(next_line.strip())
+                    pr_message = " ".join(message_parts)
+                else:  # Single-line
+                    pr_message = (
+                        line.split("pr-message:")[1].strip().strip('"').strip("'")
+                    )
+                break
+
+        # Save to cache
+        cache_data = {
+            "pr_message": pr_message,
+            "commit_sha": current_sha,
+            "last_updated": arrow.utcnow().isoformat(),
+        }
+        with open(cache_file, "w") as f:
+            json.dump(cache_data, f, indent=2)
+
+        print(f"Cached pr-message: {pr_message[:50]}...")
+        return pr_message
+
+    except Exception as e:
+        print(f"Error fetching Django workflow: {e}")
+        return ""
+
+
+def identify_first_timers(merged_prs):
+    """Identify first-time contributors by checking Django's GitHub Actions bot comments"""
     first_timers = []
 
-    # First, get all PRs for the current period to analyze
-    current_prs_by_author = {}
+    # Get Django's cached pr-message
+    pr_message = get_django_welcome_message()
+
+    print(
+        "Checking Django's GitHub Actions for first-time contributor determinations..."
+    )
+    print(f"Looking for pr-message: {pr_message[:50]}...")
+
     for pr in merged_prs:
-        login = pr["author"]["login"]
-        if login not in current_prs_by_author:
-            current_prs_by_author[login] = []
-        current_prs_by_author[login].append(pr["number"])
+        pr_number = pr["number"]
+        author = pr["author"]["login"]
 
-    # Now check each author
-    for login, pr_numbers in current_prs_by_author.items():
-        # Check if this author has previous PRs before the current period
-        command = (
-            "gh pr list --repo django/django "
-            f'-S "is:pr is:merged author:{login}" '
-            "--json number,mergedAt"
-        )
-        all_user_prs = send_command(command)
+        print(f"Checking for Django's welcome message on PR #{pr_number} by {author}")
 
-        # Count PRs before this period
-        previous_prs_count = 0
-        for pr in all_user_prs:
-            # Skip PRs from the current period
-            if str(pr["number"]) in map(str, pr_numbers):
-                continue
-
-            # Check if the PR was merged before our start date
-            if "mergedAt" in pr and pr["mergedAt"]:
-                merged_date = pr["mergedAt"].split("T")[0]  # Get just the date part
-                if merged_date < end_date.split("T")[0]:
-                    previous_prs_count += 1
-
-        # If they have no PRs before this period, they're a first-time contributor
-        if previous_prs_count == 0:
-            print(
-                f"Found new contributor: {login} with {len(all_user_prs)} total PRs, {previous_prs_count} previous PRs"
+        try:
+            # Get all comments/reviews on the PR
+            command = (
+                f"gh pr view {pr_number} --repo django/django --json comments,reviews"
             )
-            first_timers.append(f"[{login}](https://github.com/{login})")
+            result = send_command(command)
+
+            is_first_timer = False
+
+            # Check comments for GitHub Actions bot
+            for comment in result.get("comments", []):
+                author_login = comment.get("author", {}).get("login", "")
+                body = comment.get("body", "")
+
+                # Look for Django's actual pr-message in comments
+                if (
+                    author_login == "github-actions[bot]"
+                    and pr_message
+                    and pr_message in body
+                ):
+                    is_first_timer = True
+                    print(f"Found Django's welcome message for {author}")
+                    break
+
+            # Also check reviews (the bot might comment as a review)
+            if not is_first_timer:
+                for review in result.get("reviews", []):
+                    author_login = review.get("author", {}).get("login", "")
+                    body = review.get("body", "")
+
+                    if (
+                        author_login == "github-actions[bot]"
+                        and pr_message
+                        and pr_message in body
+                    ):
+                        is_first_timer = True
+                        print(f"Found Django's welcome review for {author}")
+                        break
+
+            if is_first_timer:
+                first_timers.append(f"[{author}](https://github.com/{author})")
+            else:
+                print(f"No Django welcome message found for {author}")
+
+        except Exception as e:
+            print(f"Error checking {author}: {str(e)}")
+            # Fallback: don't include them if we can't verify
 
     return first_timers
 
@@ -248,7 +349,7 @@ def fetch_django_pr_summary(start_date, end_date, filename):
 
     merged_prs = fetch_merged_prs(query)
 
-    first_timers = identify_first_timers(merged_prs, end_date)
+    first_timers = identify_first_timers(merged_prs)
 
     synopsis = generate_synopsis(
         merged_prs,
