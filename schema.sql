@@ -6,5 +6,8 @@ CREATE TABLE IF NOT EXISTS volunteers (
     due_date DATE NOT NULL,
     email TEXT,
     status TEXT DEFAULT 'pending',
-    timezone TEXT DEFAULT 'UTC'
+    timezone TEXT DEFAULT 'UTC',
+    social_media_handle TEXT,
+    preferred_reminder_time TEXT DEFAULT '09:00',
+    volunteer_name TEXT
 );

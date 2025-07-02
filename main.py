@@ -1,6 +1,8 @@
 import logging
 import os
 import re
+import sys
+from pathlib import Path
 
 import aiofiles
 import aiosqlite
@@ -9,8 +11,15 @@ import discord
 from discord.ext import commands
 from dotenv import load_dotenv
 
-from cogs import VolunteerCog
-from summary import fetch_django_pr_summary, get_django_welcome_message
+# Add src directory to path for new imports
+src_path = Path(__file__).parent / "src"
+sys.path.insert(0, str(src_path))
+
+from src.bot.cogs.automation import AutomationCog
+from src.bot.cogs.profile import ProfileCog
+from src.bot.cogs.reporting import ReportingCog
+from src.bot.cogs.volunteer import VolunteerCog
+from src.utils.github import fetch_django_pr_summary, get_django_welcome_message
 
 load_dotenv()
 TOKEN = os.getenv("DISCORD_TOKEN")
@@ -54,15 +63,68 @@ class VolunteerBot(commands.Bot):
         """
         return re.sub(r"\[(.*?)\]\((https?://.*?)\)", r"[\1](<\2>)", text)
 
-    @staticmethod
-    async def _setup_database(db_file_path: str):
-        created = not os.path.exists(db_file_path)
+    async def _check_database_setup(self):
+        """Check if database exists and is properly set up"""
+        if not os.path.exists(self.db_path):
+            print("❌ Database not found!")
+            print(f"   Expected: {self.db_path}")
+            print("   Creating initial database from schema...")
 
-        async with aiosqlite.connect(db_file_path) as conn:
-            if created:
-                schema_path = os.path.join(os.path.dirname(__file__), "schema.sql")
-                async with aiofiles.open(schema_path, "r") as f:
-                    await conn.executescript(await f.read())
+            # Create initial database from schema
+            await self._create_initial_database()
+            return True
+
+        # Check if migrations are needed
+        async with aiosqlite.connect(self.db_path) as conn:
+            async with conn.execute("PRAGMA table_info(volunteers)") as cursor:
+                columns = await cursor.fetchall()
+                column_names = [col[1] for col in columns]
+
+            missing_columns = []
+            required_columns = [
+                "social_media_handle",
+                "preferred_reminder_time",
+                "volunteer_name",
+            ]
+
+            for col in required_columns:
+                if col not in column_names:
+                    missing_columns.append(col)
+
+            if missing_columns:
+                print("⚠️  Database migrations needed!")
+                print(f"   Missing columns: {', '.join(missing_columns)}")
+                print("   Run: python scripts/migrate.py")
+                return False
+
+        return True
+
+    async def _create_initial_database(self):
+        """Create initial database from schema.sql"""
+        schema_path = os.path.join(os.path.dirname(__file__), "schema.sql")
+
+        if not os.path.exists(schema_path):
+            print("❌ schema.sql not found!")
+            print("   Run: python scripts/migrate.py")
+            return False
+
+        async with aiosqlite.connect(self.db_path) as conn:
+            async with aiofiles.open(schema_path, "r") as f:
+                schema_content = await f.read()
+            await conn.executescript(schema_content)
+            await conn.commit()
+            print("✅ Initial database created from schema.sql")
+        return True
+
+    async def _setup_initial_volunteer_dates(self):
+        """Set up initial volunteer dates if database is empty"""
+        async with aiosqlite.connect(self.db_path) as conn:
+            # Check if we already have volunteer dates
+            async with conn.execute("SELECT COUNT(*) FROM volunteers") as cursor:
+                count = (await cursor.fetchone())[0]
+
+            if count == 0:
+                print("📅 Setting up initial volunteer dates...")
 
                 now = arrow.utcnow().floor("month")
                 end = arrow.utcnow().ceil("year")
@@ -72,31 +134,50 @@ class VolunteerBot(commands.Bot):
                     monday = current.shift(weekday=0)
                     wednesday = monday.shift(days=2)
                     await conn.execute(
-                        """INSERT INTO volunteers (reminder_date, due_date) VALUES (?, ?)""",
+                        "INSERT INTO volunteers (reminder_date, due_date) VALUES (?, ?)",
                         (monday.format("YYYY-MM-DD"), wednesday.format("YYYY-MM-DD")),
                     )
                     current = current.shift(weeks=1)
                 await conn.commit()
+                print("✅ Initial volunteer dates created")
 
     async def setup_hook(self):
+        """Bot setup - NO AUTO-MIGRATIONS"""
+        print("🚀 Starting Django News Bot...")
+
+        # Check database setup (don't auto-migrate!)
+        if not await self._check_database_setup():
+            print("❌ Bot startup failed - database not ready")
+            print("   Please run: python scripts/migrate.py")
+            return
+
         # Get and cache Django's welcome message
         welcome_phrases = get_django_welcome_message()
-
         if not welcome_phrases:
-            # log these
-            print("Cannot fetch Django welcome message")
-            print("Check GitHub CLI authentication and network connectivity")
-
-        # Store it as an instance variable for summary.py to use
+            print("⚠️  Cannot fetch Django welcome message")
+            print("   Check GitHub CLI authentication and network connectivity")
         self.django_welcome_phrases = welcome_phrases
 
+        # Generate PR summary
         await VolunteerBot.generate_pr_summary()
-        await VolunteerBot._setup_database(self.db_path)
+
+        # Set up initial dates if needed
+        await self._setup_initial_volunteer_dates()
+
+        # Connect to database
         self.cursor = await aiosqlite.connect(self.db_path)
+
+        # Load cogs
         await self.add_cog(VolunteerCog(self, self.cursor))
+        await self.add_cog(ProfileCog(self, self.cursor))
+        await self.add_cog(ReportingCog(self, self.cursor))
+        await self.add_cog(AutomationCog(self, self.cursor))
+
+        print("✅ Bot setup completed successfully!")
 
     async def on_ready(self):
-        print(f"Bot connected as {self.user}")
+        print(f"🎉 Bot connected as {self.user}")
+        print(f"📈 Connected to {len(self.guilds)} servers")
 
 
 if __name__ == "__main__":
