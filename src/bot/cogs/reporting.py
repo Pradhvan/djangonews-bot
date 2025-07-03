@@ -29,7 +29,7 @@ class ReportingCog(commands.Cog):
 
         first_timer_msg = ""
         if first_timers:
-            first_timer_msg = f"\\n🎉 {len(first_timers)} first-time contributor."
+            first_timer_msg = f"\n🎉 {len(first_timers)} first-time contributor."
 
         summary = (
             f"✅ {total_prs} pull requests were merged by {contributors} contributors."
@@ -38,10 +38,10 @@ class ReportingCog(commands.Cog):
 
         if modifying_prs:
             summary += (
-                f"\\n📦 {len(modifying_prs)} PRs updated the release notes or docs:"
+                f"\n📦 {len(modifying_prs)} PRs updated the release notes or docs:"
             )
             for pr in modifying_prs:
-                summary += f"\\n🦄 [{pr['title']}](<{pr['url']}>)"
+                summary += f"\n🦄 [{pr['title']}](<{pr['url']}>)"
 
         return summary
 
@@ -53,7 +53,7 @@ class ReportingCog(commands.Cog):
         if modifying_prs:
             list_modifying_prs = ""
             for pr in modifying_prs:
-                list_modifying_prs += f"\\n🦄 [{pr['title']}](<{pr['url']}>)"
+                list_modifying_prs += f"\n🦄 [{pr['title']}](<{pr['url']}>)"
 
         return list_modifying_prs
 
@@ -130,21 +130,21 @@ class ReportingCog(commands.Cog):
                     social_text = f"[{social_handle}]({handle_link})"
                 else:
                     social_text = social_handle
-                author_text = f"your name here]({social_text}) from"
+                author_text = f"{social_text} from"  # use social handle/link directly
             else:
-                author_text = "your name here](your social or linkedin) from"
+                author_text = "your name here from"
 
             await ctx.send(
-                f"```Today 'Updates to Django' is presented by [{author_text} "
+                f"```Today 'Updates to Django' is presented by {author_text} "
                 f"the [Djangonaut Space](https://djangonaut.space/)!🚀"
-                f"\\n\\n{discord_summary}```"
-                f"\\n{list_modifying_prs}\\n\\n"
+                f"\n\n{discord_summary}```"
+                f"\n{list_modifying_prs}\n\n"
                 f"💡 **Tip:** Use `!profile` to set your social media handle for automatic insertion!"
             )
         else:
             await ctx.send(f"📢 **Django Weekly Summary ({last_week})**")
             await ctx.send(f"{short_summary}")
-            await ctx.send(f"🧑‍💻 **Synopsis**\\n{discord_summary}")
+            await ctx.send(f"🧑‍💻 **Synopsis**\n{discord_summary}")
 
 
 async def setup(bot):
