@@ -2,35 +2,27 @@
 
 A Discord bot to help coordinate weekly volunteer efforts for the Django News newsletter. Volunteers can claim and unclaim upcoming dates, get reminders, and manage all that through Discord.
 
----
 
-## 🛠️ Features being worked upon
+## 📚 Documentation
 
-- ✅ List available dates to volunteer
-- 🙋 Volunteer for a specific date
-- 🙅 Un-volunteer from a date you claimed
-- 📅 Auto-runs [`django-news-pr-filter`](https://github.com/sakhawy/django-news-pr-filter/tree/main) and sends results every Monday in your preferred timezone
-- 🕓 Timezone-aware reminders via Discord DMs, sent every Monday with data of last week's merged PRs
-- 👥 List of claimed dates showing which volunteer picked which date
-- 🚨 Sends a reminder in the channel if no one has claimed the current week
+The full guide is now available in the [Wiki](https://github.com/Pradhvan/djangonews-bot/wiki):
 
----
+- [✍️ Writing Updates](https://github.com/Pradhvan/djangonews-bot/wiki/Writing-Updates-to-Django-for-Django-News)  
+  How to write and submit your weekly PR summary.
 
-## Commands that are available
-All commands use the prefix `!`. Dates format `YYYY-MM-DD` (example 2025-05-14)
+- [🤖 Know Your Bot](https://github.com/Pradhvan/djangonews-bot/wiki/%F0%9F%A4%96-Know-your-bot)  
+  All bot commands explained with usage tips.
 
-| command                 | description                                                                                                            | example usage                                                  |
-|-------------------------|------------------------------------------------------------------------------------------------------------------------|----------------------------------------------------------------|
-| `!available`            | List up available dates to volunteer                                                                                   |                                                                |
-| `!volunteer [option]`   | Assign you to a specific date. If the `next` option is specified you're assigned to the next available date.           | `!volunteer `<br>`!volunteer next`                             |
-| `!unvolunteer [option]` | Removes you from a specific date. If the `next` option is specified you're unassigned to your next available shift.    | `!unvolunteer`<br>`!unvolunteer next`                          |
-| `!mydates`              | Shows all dates assigned to you.                                                                                       |                                                                |
-| `!status`               | Display the status of all assigned dates and who they're assigned to.                                                  |                                                                |
-| `!report`               | last week's data of merged PRs highlighting total contributor, first time contributor, Prs that modified release files |                                                                |
-| `!settimezone [option]` | Set your timezone. Type as option a name of your city or abbreviations.                                                | `!settimezone`<br>`!settimezone gmt+4`<br>`!settimezone paris` |
+- [🛠️ Managing in Production](https://github.com/Pradhvan/djangonews-bot/wiki/Managing-the-Bot-Service-in-Production)  
+  For maintainers deploying or restarting the bot.
 
----
 
+## 🛠️ Features
+
+- 📅 List and claim upcoming volunteer dates
+- 🔄 Unclaim dates when needed
+- 🤖 Discord-based reminder system (timezone-aware)
+- 🧠 Auto-generates PR summaries inspired from [`django-news-pr-filter`](https://github.com/sakhawy/django-news-pr-filter/)
 
 ## 🔕 No Spam Policy
 
