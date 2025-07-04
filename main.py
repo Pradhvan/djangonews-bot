@@ -35,22 +35,30 @@ class VolunteerBot(commands.Bot):
         self.django_welcome_phrases = None
         self.db_path = os.path.join(os.path.dirname(__file__), DATABASE)
 
-    @staticmethod
-    async def generate_pr_summary():
+    async def generate_pr_summary(self):
+        """Generate weekly PR summary and store in database"""
         # Get last week's date range using Arrow's span feature
         last_week = arrow.utcnow().shift(weeks=-1)
         last_monday, last_sunday = last_week.span("week")
 
-        # Format dates for filename and API calls
+        # Format dates for API calls
         start_date = last_monday.format("YYYY-MM-DD")
         end_date = last_sunday.format("YYYY-MM-DD")
-        filename = f"{start_date}-{end_date}_pr.json"
 
-        if not os.path.exists(filename):
-            fetch_django_pr_summary(
-                start_date=start_date, end_date=end_date, filename=filename
-            )
-        return filename
+        # Check if we already have this week's report
+        async with aiosqlite.connect(self.db_path) as conn:
+            async with conn.execute(
+                "SELECT id FROM weekly_reports WHERE start_date = ? AND end_date = ?",
+                (start_date, end_date),
+            ) as cursor:
+                existing_report = await cursor.fetchone()
+
+            if not existing_report:
+                # Generate new report and save to database
+                print(f"📊 Generating new weekly report for {start_date} to {end_date}")
+                await fetch_django_pr_summary(conn, start_date, end_date)
+            else:
+                print(f"📊 Weekly report already exists for {start_date} to {end_date}")
 
     @staticmethod
     async def disable_link_previews(text: str) -> str:
@@ -72,10 +80,24 @@ class VolunteerBot(commands.Bot):
 
             # Create initial database from schema
             await self._create_initial_database()
-            return True
+            return True  # Fresh database is fully set up
 
-        # Check if migrations are needed
+        # Check if migrations are needed for existing database
         async with aiosqlite.connect(self.db_path) as conn:
+            # Check if applied_migrations table exists (indicates migration system is in use)
+            async with conn.execute(
+                "SELECT name FROM sqlite_master WHERE type='table' AND name='applied_migrations'"
+            ) as cursor:
+                has_migration_table = await cursor.fetchone()
+
+            if not has_migration_table:
+                print(
+                    "⚠️  Old database format detected - migration system not initialized"
+                )
+                print("   Run: python migrate.py")
+                return False
+
+            # Check volunteers table columns
             async with conn.execute("PRAGMA table_info(volunteers)") as cursor:
                 columns = await cursor.fetchall()
                 column_names = [col[1] for col in columns]
@@ -91,10 +113,25 @@ class VolunteerBot(commands.Bot):
                 if col not in column_names:
                     missing_columns.append(col)
 
-            if missing_columns:
+            # Check for new tables
+            missing_tables = []
+            required_tables = ["cache_entries", "weekly_reports"]
+
+            for table in required_tables:
+                async with conn.execute(
+                    "SELECT name FROM sqlite_master WHERE type='table' AND name=?",
+                    (table,),
+                ) as cursor:
+                    if not await cursor.fetchone():
+                        missing_tables.append(table)
+
+            if missing_columns or missing_tables:
                 print("⚠️  Database migrations needed!")
-                print(f"   Missing columns: {', '.join(missing_columns)}")
-                print("   Run: python scripts/migrate.py")
+                if missing_columns:
+                    print(f"   Missing columns: {', '.join(missing_columns)}")
+                if missing_tables:
+                    print(f"   Missing tables: {', '.join(missing_tables)}")
+                print("   Run: python migrate.py")
                 return False
 
         return True
@@ -105,7 +142,7 @@ class VolunteerBot(commands.Bot):
 
         if not os.path.exists(schema_path):
             print("❌ schema.sql not found!")
-            print("   Run: python scripts/migrate.py")
+            print("   Run: python migrate.py")
             return False
 
         async with aiosqlite.connect(self.db_path) as conn:
@@ -113,8 +150,35 @@ class VolunteerBot(commands.Bot):
                 schema_content = await f.read()
             await conn.executescript(schema_content)
             await conn.commit()
+
+            # Mark all migrations as applied since schema.sql contains everything
+            await self._mark_all_migrations_applied(conn)
+
             print("✅ Initial database created from schema.sql")
         return True
+
+    @staticmethod
+    async def _mark_all_migrations_applied(conn):
+        """Mark all existing migrations as applied for fresh database"""
+        # Get list of all migration files
+        migrations_dir = Path(__file__).parent / "migrations"
+
+        if not migrations_dir.exists():
+            return
+
+        migration_files = list(migrations_dir.glob("[0-9][0-9]_*.py"))
+
+        for migration_file in migration_files:
+            migration_id = migration_file.stem[:2]
+            migration_name = migration_file.stem[3:]
+
+            await conn.execute(
+                "INSERT OR REPLACE INTO applied_migrations (migration_id, migration_name) VALUES (?, ?)",
+                (migration_id, migration_name),
+            )
+
+        await conn.commit()
+        print(f"✅ Marked {len(migration_files)} migrations as applied")
 
     async def _setup_initial_volunteer_dates(self):
         """Set up initial volunteer dates if database is empty"""
@@ -148,24 +212,24 @@ class VolunteerBot(commands.Bot):
         # Check database setup (don't auto-migrate!)
         if not await self._check_database_setup():
             print("❌ Bot startup failed - database not ready")
-            print("   Please run: python scripts/migrate.py")
+            print("   Please run: python migrate.py")
             return
 
-        # Get and cache Django's welcome message
-        welcome_phrases = get_django_welcome_message()
+        # Connect to database early for setup operations
+        self.cursor = await aiosqlite.connect(self.db_path)
+
+        # Get and cache Django's welcome message using database
+        welcome_phrases = await get_django_welcome_message(self.cursor)
         if not welcome_phrases:
             print("⚠️  Cannot fetch Django welcome message")
             print("   Check GitHub CLI authentication and network connectivity")
         self.django_welcome_phrases = welcome_phrases
 
-        # Generate PR summary
-        await VolunteerBot.generate_pr_summary()
+        # Generate PR summary (now stores in database)
+        await self.generate_pr_summary()
 
         # Set up initial dates if needed
         await self._setup_initial_volunteer_dates()
-
-        # Connect to database
-        self.cursor = await aiosqlite.connect(self.db_path)
 
         # Load cogs
         await self.add_cog(VolunteerCog(self, self.cursor))

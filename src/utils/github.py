@@ -1,7 +1,4 @@
-import glob
 import json
-import os
-import re
 import subprocess
 import urllib.parse
 from shlex import split as shlex_split
@@ -13,40 +10,6 @@ def format_date_range_humanized(start, end):
     start = arrow.get(start, "YYYY-MM-DD")
     end = arrow.get(end, "YYYY-MM-DD")
     return f"{start.format('MMMM D')} to {end.format('MMMM D, YYYY')}"
-
-
-def validate_pr_filename(filename, start_date=None, end_date=None):
-    """
-    Validates a PR summary filename for security and format correctness.
-
-    Args:
-        filename: The filename to validate
-        start_date: Optional start date to check for consistency with filename
-        end_date: Optional end date to check for consistency with filename
-
-    Returns:
-        A safe filename (basename only) if valid
-
-    Raises:
-        ValueError: If the filename is invalid or doesn't match the expected format
-    """
-    # Check if filename has the correct format
-    pattern = r"^\d{4}-\d{2}-\d{2}-\d{4}-\d{2}-\d{2}_pr\.json$"
-    if not re.match(pattern, os.path.basename(filename)):
-        raise ValueError(
-            f"Invalid filename format: {filename}. Expected format: YYYY-MM-DD-YYYY-MM-DD_pr.json"
-        )
-
-    # If dates are provided, ensure filename is consistent with them
-    if start_date and end_date:
-        expected_filename = f"{start_date}-{end_date}_pr.json"
-        if os.path.basename(filename) != expected_filename:
-            raise ValueError(
-                f"Filename {filename} doesn't match the expected format for dates {start_date} to {end_date}"
-            )
-
-    # Return only the basename to prevent path traversal
-    return os.path.basename(filename)
 
 
 def build_github_search_query(start_date, end_date):
@@ -125,9 +88,9 @@ def get_full_name_contributors(first_timers):
     return updated_contributors
 
 
-def get_django_welcome_message():
-    """Get Django's current new contributor message, with caching"""
-    cache_file = "django_welcome_cache.json"
+async def get_django_welcome_message(db_connection):
+    """Get Django's current new contributor message, with database caching"""
+    cache_key = "django_welcome_message"
 
     # Get current SHA from GitHub first
     try:
@@ -138,21 +101,23 @@ def get_django_welcome_message():
         print(f"Error getting current SHA: {e}")
         return ""
 
-    # Check cache and compare SHA
-    if os.path.exists(cache_file):
-        try:
-            with open(cache_file, "r") as f:
-                cached_data = json.load(f)
+    # Check database cache and compare SHA
+    try:
+        async with db_connection.execute(
+            "SELECT value, commit_sha FROM cache_entries WHERE key = ?", (cache_key,)
+        ) as cursor:
+            cached_row = await cursor.fetchone()
+    except Exception as e:
+        print(f"Warning: Could not access cache_entries table: {e}")
+        cached_row = None
 
-            cached_sha = cached_data.get("commit_sha", "")
-
-            if cached_sha == current_sha and current_sha != "unknown":
-                print(f"Cache up-to-date (SHA: {current_sha[:8]}...)")
-                return cached_data.get("pr_message", "")
-            else:
-                print(f"SHA changed: {cached_sha[:8]}... → {current_sha[:8]}...")
-        except Exception as e:
-            print(f"Cache read error: {e}")
+    if cached_row:
+        cached_value, cached_sha = cached_row
+        if cached_sha == current_sha and current_sha != "unknown":
+            print(f"Cache up-to-date (SHA: {current_sha[:8]}...)")
+            return cached_value
+        else:
+            print(f"SHA changed: {cached_sha[:8]}... → {current_sha[:8]}...")
 
     # Fetch from GitHub (cache missing or SHA changed)
     try:
@@ -185,16 +150,19 @@ def get_django_welcome_message():
                     )
                 break
 
-        # Save to cache
-        cache_data = {
-            "pr_message": pr_message,
-            "commit_sha": current_sha,
-            "last_updated": arrow.utcnow().isoformat(),
-        }
-        with open(cache_file, "w") as f:
-            json.dump(cache_data, f, indent=2)
-
-        print(f"Cached pr-message: {pr_message[:50]}...")
+        # Save to database cache
+        try:
+            await db_connection.execute(
+                """
+                INSERT OR REPLACE INTO cache_entries (key, value, commit_sha, updated_at)
+                VALUES (?, ?, ?, CURRENT_TIMESTAMP)
+                """,
+                (cache_key, pr_message, current_sha),
+            )
+            await db_connection.commit()
+            print(f"Cached pr-message to database: {pr_message[:50]}...")
+        except Exception as e:
+            print(f"Warning: Could not save to cache_entries table: {e}")
         return pr_message
 
     except Exception as e:
@@ -202,12 +170,9 @@ def get_django_welcome_message():
         return ""
 
 
-def identify_first_timers(merged_prs):
+def identify_first_timers(merged_prs, pr_message):
     """Identify first-time contributors by checking Django's GitHub Actions bot comments"""
     first_timers = []
-
-    # Get Django's cached pr-message
-    pr_message = get_django_welcome_message()
 
     print(
         "Checking Django's GitHub Actions for first-time contributor determinations..."
@@ -308,37 +273,63 @@ def generate_synopsis(merged_prs, first_timers, search_url):
             )
 
         synopsis += (
-            f" – including {len(first_timers)} first time contributor{'s' if len(first_timers) > 1 else ''}! "
+            f" – including {len(first_timers)} first time "
+            f"contributor{'s' if len(first_timers) > 1 else ''}! "
             f"Congratulations to {contributors_text} for having their first "
-            f"commit{'s' if len(first_timers) > 1 else ''} merged into Django – welcome on board!"
+            f"commit{'s' if len(first_timers) > 1 else ''} merged into Django "
+            f"– welcome on board!"
         )
     else:
         synopsis += "."
     return synopsis
 
 
-def cleanup_old_json_files(current_filename):
-    # Ensure we're only dealing with the basename to prevent directory traversal
+async def save_weekly_report_to_db(db_connection, start_date, end_date, report_data):
+    """Save weekly report to database and cleanup old reports"""
 
-    for f in glob.glob("*_pr.json"):
-        # Only delete files that match our expected pattern and aren't the current file
-        try:
-            if f != current_filename and os.path.dirname(f) == "":
-                # Validate the file before deleting it
-                validate_pr_filename(f)
-                os.remove(f)
-                print(f"Deleted old file: {f}")
-        except ValueError:
-            # Skip files that don't match our expected format
-            print(f"Skipping invalid file: {f}")
-        except Exception as e:
-            print(f"Error deleting file {f}: {str(e)}")
+    # Insert the new report
+    await db_connection.execute(
+        """
+        INSERT OR REPLACE INTO weekly_reports
+        (start_date, end_date, total_prs, first_time_contributors_count, synopsis, date_range_humanized, pr_data)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
+        """,
+        (
+            start_date,
+            end_date,
+            report_data["total_prs"],
+            report_data["first_time_contributors_count"],
+            report_data["synopsis"],
+            report_data["date_range_humanized"],
+            json.dumps(report_data["prs"]),
+        ),
+    )
+
+    # Auto-cleanup: keep only last 3 reports
+    await db_connection.execute(
+        """
+        DELETE FROM weekly_reports
+        WHERE id NOT IN (
+            SELECT id FROM weekly_reports
+            ORDER BY created_at DESC
+            LIMIT 3
+        )
+        """
+    )
+
+    await db_connection.commit()
+    print(f"📊 Saved weekly report to database: {start_date} to {end_date}")
+
+    # Check how many reports we have now
+    async with db_connection.execute("SELECT COUNT(*) FROM weekly_reports") as cursor:
+        count = (await cursor.fetchone())[0]
+        print(f"📈 Database now contains {count} weekly report(s)")
 
 
-def fetch_django_pr_summary(start_date, end_date, filename):
+async def fetch_django_pr_summary(db_connection, start_date, end_date):
     """
     Fetches the merged pull requests from the Django repository on GitHub for the last week,
-    identifies first-time contributors, and generates a summary JSON file.
+    identifies first-time contributors, and saves to database.
     """
 
     query = build_github_search_query(start_date, end_date)
@@ -347,9 +338,12 @@ def fetch_django_pr_summary(start_date, end_date, filename):
 
     print(f"Fetching PRs merged from {start_date} to {end_date}...")
 
+    # Get Django welcome message for first-timer detection
+    pr_message = await get_django_welcome_message(db_connection)
+
     merged_prs = fetch_merged_prs(query)
 
-    first_timers = identify_first_timers(merged_prs)
+    first_timers = identify_first_timers(merged_prs, pr_message)
 
     synopsis = generate_synopsis(
         merged_prs,
@@ -370,7 +364,7 @@ def fetch_django_pr_summary(start_date, end_date, filename):
             }
         )
 
-    summary_json = {
+    summary_data = {
         "synopsis": synopsis,
         "total_prs": len(merged_prs),
         "first_time_contributors_count": len(first_timers),
@@ -379,18 +373,34 @@ def fetch_django_pr_summary(start_date, end_date, filename):
         "date_range_humanized": format_date_range_humanized(start_date, end_date),
     }
 
-    # Validate the filename with error handling
-    try:
-        safe_filename = validate_pr_filename(filename, start_date, end_date)
-    except ValueError as e:
-        # Log the error but continue with the original filename
-        print(f"Warning: {str(e)}")
-        print(f"Using original filename: {filename} as fallback")
-        safe_filename = os.path.basename(filename)
+    # Save to database instead of file
+    await save_weekly_report_to_db(db_connection, start_date, end_date, summary_data)
 
-    # Use the safe filename for writing
-    with open(safe_filename, "w") as f:
-        json.dump(summary_json, f, indent=2)
-        print(f"Saved: {safe_filename}")
+    return summary_data
 
-    cleanup_old_json_files(safe_filename)
+
+async def get_latest_weekly_report(db_connection):
+    """Get the most recent weekly report from database"""
+    async with db_connection.execute(
+        """
+        SELECT start_date, end_date, total_prs, first_time_contributors_count,
+               synopsis, date_range_humanized, pr_data
+        FROM weekly_reports
+        ORDER BY created_at DESC
+        LIMIT 1
+        """
+    ) as cursor:
+        row = await cursor.fetchone()
+
+        if not row:
+            return None
+
+        return {
+            "start_date": row[0],
+            "end_date": row[1],
+            "total_prs": row[2],
+            "first_time_contributors_count": row[3],
+            "synopsis": row[4],
+            "date_range_humanized": row[5],
+            "prs": json.loads(row[6]) if row[6] else [],
+        }

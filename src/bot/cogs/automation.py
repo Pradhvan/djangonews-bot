@@ -3,14 +3,12 @@ Automation and admin commands - weekly loops, placeholder creation
 """
 
 import asyncio
-import json
 import logging
 import os
 import sys
 import urllib.parse
 from pathlib import Path
 
-import aiofiles
 import arrow
 import discord
 from discord.ext import commands, tasks
@@ -18,7 +16,7 @@ from discord.ext import commands, tasks
 # Add src directory to path for imports
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
-from utils.github import build_github_search_query
+from utils.github import build_github_search_query, get_latest_weekly_report
 from utils.permissions import is_authorized_user
 
 
@@ -138,7 +136,7 @@ class AutomationCog(commands.Cog):
             end_date_str = last_sunday.format("D,MMMM YYYY")
             thread_name = f"Updates to Django from {start_date_str} to {end_date_str} [Placeholder]"
 
-            # Generate content using existing report logic
+            # Generate content using database-based report logic
             content = await self._generate_placeholder_content(last_monday, last_sunday)
 
             # Create forum post (thread)
@@ -155,8 +153,9 @@ class AutomationCog(commands.Cog):
 
             # Add simple notification
             await thread.send(
-                "📝 **Weekly Django News placeholder created!**\\n"
-                "This placeholder will be automatically deleted next Monday or earlier by a bot authorized user."
+                "📝 **Weekly Django News placeholder created!**\n"
+                "This placeholder will be automatically deleted next Monday "
+                "or earlier by a bot authorized user."
             )
 
         except Exception as e:
@@ -194,13 +193,20 @@ class AutomationCog(commands.Cog):
             self.current_placeholder_thread = None
 
     async def _generate_placeholder_content(self, last_monday, last_sunday):
-        """Generate placeholder content using existing report logic"""
+        """Generate placeholder content using database-based report logic"""
         try:
-            # Reuse existing report generation
-            filename = await self.bot.generate_pr_summary()
-            async with aiofiles.open(filename, mode="r") as f:
-                contents = await f.read()
-                pr_data = json.loads(contents)
+            # Ensure report exists in database
+            await self.bot.generate_pr_summary()
+
+            # Get report data from database
+            pr_data = await get_latest_weekly_report(self.cursor)
+
+            if not pr_data:
+                self.logger.error("No weekly report available for placeholder content")
+                return (
+                    "Error generating template content. "
+                    "Please run `!report md` manually."
+                )
 
             start_date = last_monday.format("YYYY-MM-DD")
             end_date = last_sunday.format("YYYY-MM-DD")
@@ -215,13 +221,14 @@ class AutomationCog(commands.Cog):
 
             # Build the complete template
             content = (
-                f'**Starting template for "Updates to Django" section**\\n'
-                f"```\\n"
-                f"Today 'Updates to Django' is presented by [your name here](your social or linkedin) from "
-                f"the [Djangonaut Space](https://djangonaut.space/)!🚀\\n\\n"
+                f'**Starting template for "Updates to Django" section**\n'
+                f"```\n"
+                f"Today 'Updates to Django' is presented by "
+                f"[your name here](your social or linkedin) from "
+                f"the [Djangonaut Space](https://djangonaut.space/)!🚀\n\n"
                 f"{discord_summary}"
                 f"```"
-                f"\\n\\n 🦄 [Weekly Pull Request Summary](<{search_url}>)"
+                f"\n\n 🦄 [Weekly Pull Request Summary](<{search_url}>)"
             )
 
             return content
@@ -279,9 +286,10 @@ class AutomationCog(commands.Cog):
 
             except discord.Forbidden:
                 await ctx.send(
-                    f"❌ **Permission denied!**\\n"
-                    f"Bot lacks permission to delete thread '{thread_name}'.\\n"
-                    f"Make sure the bot has 'Manage Threads' permission in the forum channel."
+                    f"❌ **Permission denied!**\n"
+                    f"Bot lacks permission to delete thread '{thread_name}'.\n"
+                    f"Make sure the bot has 'Manage Threads' permission "
+                    f"in the forum channel."
                 )
 
         except Exception as e:
@@ -297,14 +305,19 @@ class AutomationCog(commands.Cog):
         try:
             if not self.current_placeholder_thread:
                 await ctx.send(
-                    f"📝 **No placeholder currently tracked**\\nℹ️ Next automatic placeholder will be created on Monday at {self.placeholder_hour}:00 UTC"
+                    f"📝 **No placeholder currently tracked**\n"
+                    f"ℹ️ Next automatic placeholder will be created on "
+                    f"Monday at {self.placeholder_hour}:00 UTC"
                 )
                 return
 
             # Get thread info
             thread_name = self.current_placeholder_thread.name
             thread_id = self.current_placeholder_thread.id
-            thread_url = f"https://discord.com/channels/{ctx.guild.id}/{self.current_placeholder_thread.parent.id}/{thread_id}"
+            thread_url = (
+                f"https://discord.com/channels/{ctx.guild.id}/"
+                f"{self.current_placeholder_thread.parent.id}/{thread_id}"
+            )
 
             # Check if thread still exists and get info
             try:
@@ -318,20 +331,21 @@ class AutomationCog(commands.Cog):
                 created_str = created_at.strftime("%Y-%m-%d %H:%M UTC")
 
                 status_msg = (
-                    f"📝 **Current Placeholder Status**\\n"
-                    f"🏷️ **Name:** {thread_name}\\n"
-                    f"🆔 **ID:** {thread_id}\\n"
-                    f"🟢 **Status:** {status}\\n"
-                    f"📅 **Created:** {created_str}\\n"
-                    f"🔗 **Link:** {thread_url}\\n\\n"
-                    f"🔄 **Auto-deletion:** Next Monday at {self.placeholder_hour}:00 UTC"
+                    f"📝 **Current Placeholder Status**\n"
+                    f"🏷️ **Name:** {thread_name}\n"
+                    f"🆔 **ID:** {thread_id}\n"
+                    f"🟢 **Status:** {status}\n"
+                    f"📅 **Created:** {created_str}\n"
+                    f"🔗 **Link:** {thread_url}\n\n"
+                    f"🔄 **Auto-deletion:** Next Monday at "
+                    f"{self.placeholder_hour}:00 UTC"
                 )
 
                 await ctx.send(status_msg)
 
             except discord.NotFound:
                 await ctx.send(
-                    f"⚠️ **Tracked thread no longer exists:** {thread_name}\\n🧽 Clearing reference..."
+                    f"⚠️ **Tracked thread no longer exists:** {thread_name}\n🧽 Clearing reference..."
                 )
                 self.current_placeholder_thread = None
 
