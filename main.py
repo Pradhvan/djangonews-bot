@@ -157,7 +157,8 @@ class VolunteerBot(commands.Bot):
             print("✅ Initial database created from schema.sql")
         return True
 
-    async def _mark_all_migrations_applied(self, conn):
+    @staticmethod
+    async def _mark_all_migrations_applied(conn):
         """Mark all existing migrations as applied for fresh database"""
         # Get list of all migration files
         migrations_dir = Path(__file__).parent / "migrations"
