@@ -19,11 +19,7 @@ from src.bot.cogs.automation import AutomationCog
 from src.bot.cogs.profile import ProfileCog
 from src.bot.cogs.reporting import ReportingCog
 from src.bot.cogs.volunteer import VolunteerCog
-from src.utils.github import (
-    fetch_django_pr_summary,
-    get_django_welcome_message,
-    get_latest_weekly_report,
-)
+from src.utils.github import fetch_django_pr_summary, get_django_welcome_message
 
 load_dotenv()
 TOKEN = os.getenv("DISCORD_TOKEN")
