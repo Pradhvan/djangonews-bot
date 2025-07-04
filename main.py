@@ -115,7 +115,7 @@ class VolunteerBot(commands.Bot):
 
             # Check for new tables
             missing_tables = []
-            required_tables = ["cache_entries", "weekly_reports"]
+            required_tables = ["cache_entries", "weekly_reports", "bot_state"]
 
             for table in required_tables:
                 async with conn.execute(

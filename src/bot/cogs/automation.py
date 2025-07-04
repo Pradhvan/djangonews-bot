@@ -3,6 +3,7 @@ Automation and admin commands - weekly loops, placeholder creation
 """
 
 import asyncio
+import json
 import logging
 import os
 import sys
@@ -41,6 +42,10 @@ class AutomationCog(commands.Cog):
     async def cog_load(self):
         """Start the weekly loop when cog loads"""
         self.logger.info("Starting weekly placeholder loop...")
+
+        # Restore placeholder thread reference from database
+        await self._restore_placeholder_thread_from_db()
+
         self.weekly_placeholder_loop.start()
 
     async def cog_unload(self):
@@ -62,6 +67,128 @@ class AutomationCog(commands.Cog):
         )
 
         return next_monday
+
+    async def _save_placeholder_state_to_db(
+        self, thread_id: int, guild_id: int, channel_id: int, thread_name: str
+    ):
+        """Save current placeholder thread state to database"""
+        try:
+            placeholder_data = {
+                "thread_id": thread_id,
+                "guild_id": guild_id,
+                "channel_id": channel_id,
+                "thread_name": thread_name,
+                "created_at": arrow.utcnow().isoformat(),
+            }
+
+            await self.cursor.execute(
+                "INSERT OR REPLACE INTO bot_state (key, value, updated_at) VALUES (?, ?, CURRENT_TIMESTAMP)",
+                ("current_placeholder_thread", json.dumps(placeholder_data)),
+            )
+            await self.cursor.commit()
+            self.logger.info(
+                "💾 Saved placeholder state to database: %s (ID: %s)",
+                thread_name,
+                thread_id,
+            )
+        except Exception as e:
+            self.logger.error("❌ Failed to save placeholder state: %s", e)
+
+    async def _restore_placeholder_thread_from_db(self):
+        """Restore placeholder thread reference from database on startup"""
+        try:
+            async with self.cursor.execute(
+                "SELECT value FROM bot_state WHERE key = ?",
+                ("current_placeholder_thread",),
+            ) as cursor:
+                row = await cursor.fetchone()
+
+            if not row:
+                self.logger.info("📍 No placeholder thread state found in database")
+                return
+
+            placeholder_data = json.loads(row[0])
+            thread_id = placeholder_data["thread_id"]
+            guild_id = placeholder_data["guild_id"]
+            thread_name = placeholder_data["thread_name"]
+            created_at = placeholder_data.get("created_at", "unknown")
+
+            self.logger.info(
+                "🔄 Attempting to restore placeholder thread: %s (ID: %s)",
+                thread_name,
+                thread_id,
+            )
+
+            # Try to get the thread object
+            try:
+                guild = self.bot.get_guild(guild_id)
+                if not guild:
+                    guild = await self.bot.fetch_guild(guild_id)
+
+                if guild:
+                    # Try to fetch the thread
+                    self.current_placeholder_thread = await guild.fetch_channel(
+                        thread_id
+                    )
+
+                    if self.current_placeholder_thread:
+                        self.logger.info(
+                            "✅ Restored placeholder thread reference: %s (ID: %s)",
+                            thread_name,
+                            thread_id,
+                        )
+                        self.logger.info("   Created: %s", created_at)
+                        self.logger.info(
+                            "   Status: %s",
+                            (
+                                "Archived"
+                                if self.current_placeholder_thread.archived
+                                else "Active"
+                            ),
+                        )
+                    else:
+                        self.logger.warning(
+                            "⚠️  Thread object is None for ID %s", thread_id
+                        )
+                        await self._clear_placeholder_state_from_db()
+                else:
+                    self.logger.warning(
+                        "⚠️  Could not find guild %s to restore placeholder thread",
+                        guild_id,
+                    )
+                    await self._clear_placeholder_state_from_db()
+
+            except discord.NotFound:
+                self.logger.warning(
+                    "⚠️  Placeholder thread %s no longer exists - clearing state",
+                    thread_id,
+                )
+                await self._clear_placeholder_state_from_db()
+            except discord.Forbidden:
+                self.logger.warning("⚠️  No permission to access thread %s", thread_id)
+                await self._clear_placeholder_state_from_db()
+            except Exception as e:
+                self.logger.warning(
+                    "⚠️  Could not restore placeholder thread %s: %s", thread_id, e
+                )
+                await self._clear_placeholder_state_from_db()
+
+        except json.JSONDecodeError as e:
+            self.logger.error("❌ Invalid JSON in placeholder state: %s", e)
+            await self._clear_placeholder_state_from_db()
+        except Exception as e:
+            self.logger.error("❌ Failed to restore placeholder state: %s", e)
+
+    async def _clear_placeholder_state_from_db(self):
+        """Clear placeholder thread state from database"""
+        try:
+            await self.cursor.execute(
+                "DELETE FROM bot_state WHERE key = ?", ("current_placeholder_thread",)
+            )
+            await self.cursor.commit()
+            self.logger.info("🧹 Cleared placeholder state from database")
+        except Exception as e:
+            self.logger.error("❌ Failed to clear placeholder state: %s", e)
 
     @tasks.loop(count=1)  # Run once, then reschedule itself
     async def weekly_placeholder_loop(self):
@@ -149,6 +276,11 @@ class AutomationCog(commands.Cog):
             # Store reference for cleanup
             self.current_placeholder_thread = thread
 
+            # Save state to database for restart reliability
+            await self._save_placeholder_state_to_db(
+                thread.id, forum_channel.guild.id, forum_channel.id, thread_name
+            )
+
             self.logger.info("Created forum post: %s (ID: %s)", thread_name, thread.id)
 
             # Add simple notification
@@ -191,6 +323,8 @@ class AutomationCog(commands.Cog):
             self.logger.error("Error cleaning up old placeholder: %s", e)
         finally:
             self.current_placeholder_thread = None
+            # Clear database state
+            await self._clear_placeholder_state_from_db()
 
     async def _generate_placeholder_content(self, last_monday, last_sunday):
         """Generate placeholder content using database-based report logic"""
@@ -245,19 +379,39 @@ class AutomationCog(commands.Cog):
     @is_authorized_user()
     async def manual_placeholder(self, ctx):
         """Manual command to create placeholder (authorized users only)"""
+        # Check if old placeholder exists and delete it first
+        if self.current_placeholder_thread:
+            await ctx.send(
+                f"🧹 Deleting old placeholder: {self.current_placeholder_thread.name}"
+            )
+            await self._cleanup_old_placeholder()
+        else:
+            # Also check database in case bot was restarted
+            await self._restore_placeholder_thread_from_db()
+            if self.current_placeholder_thread:
+                await ctx.send(
+                    f"🧹 Deleting old placeholder: {self.current_placeholder_thread.name}"
+                )
+                await self._cleanup_old_placeholder()
+
+        # Create new placeholder
         await self._create_weekly_placeholder()
-        await ctx.send("✅ Placeholder thread created manually")
+        await ctx.send("✅ New placeholder thread created manually!")
 
     @commands.command(name="delete_placeholder", hidden=True)
     @is_authorized_user()
     async def delete_placeholder(self, ctx):
         """Delete the current placeholder thread (authorized users only)"""
         try:
+            # If no current placeholder, try to restore from database first
             if not self.current_placeholder_thread:
-                await ctx.send(
-                    "⚠️ No placeholder thread to delete (none currently tracked)"
-                )
-                return
+                await self._restore_placeholder_thread_from_db()
+
+                if not self.current_placeholder_thread:
+                    await ctx.send(
+                        "⚠️ No placeholder thread to delete (none currently tracked)"
+                    )
+                    return
 
             # Store thread info for confirmation message
             thread_name = self.current_placeholder_thread.name
@@ -272,6 +426,8 @@ class AutomationCog(commands.Cog):
 
                 await self.current_placeholder_thread.delete()
                 self.current_placeholder_thread = None
+                # Clear database state
+                await self._clear_placeholder_state_from_db()
 
                 await ctx.send(f"✅ **Deleted placeholder thread:** {thread_name}")
                 self.logger.info(
@@ -283,6 +439,8 @@ class AutomationCog(commands.Cog):
             except discord.NotFound:
                 await ctx.send(f"⚠️ Thread '{thread_name}' was already deleted")
                 self.current_placeholder_thread = None
+                # Clear database state since thread no longer exists
+                await self._clear_placeholder_state_from_db()
 
             except discord.Forbidden:
                 await ctx.send(
@@ -303,13 +461,17 @@ class AutomationCog(commands.Cog):
     async def placeholder_status(self, ctx):
         """Show current placeholder thread status (authorized users only)"""
         try:
+            # If no current placeholder, try to restore from database first
             if not self.current_placeholder_thread:
-                await ctx.send(
-                    f"📝 **No placeholder currently tracked**\n"
-                    f"ℹ️ Next automatic placeholder will be created on "
-                    f"Monday at {self.placeholder_hour}:00 UTC"
-                )
-                return
+                await self._restore_placeholder_thread_from_db()
+
+                if not self.current_placeholder_thread:
+                    await ctx.send(
+                        f"📝 **No placeholder currently tracked**\n"
+                        f"ℹ️ Next automatic placeholder will be created on "
+                        f"Monday at {self.placeholder_hour}:00 UTC"
+                    )
+                    return
 
             # Get thread info
             thread_name = self.current_placeholder_thread.name
