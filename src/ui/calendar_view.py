@@ -42,7 +42,7 @@ def generate_date_list(available_dates: List[str], limit: int = 10) -> str:
             urgency = f"🟢 {days_until} days"
 
         # Format as a single line to avoid embed issues
-        date_lines.append(f"`{i+1:2d}.` **{formatted_date}** - {urgency}")
+        date_lines.append(f"`{i + 1:2d}.` **{formatted_date}** - {urgency}")
 
     result = "📅 **Available Volunteer Dates:**\n\n" + "\n".join(date_lines)
 
@@ -91,7 +91,7 @@ def generate_user_date_summary(user_dates: List[Tuple[str, str]]) -> str:
             urgency = f"🟢 {days_until} days away"
 
         summary_lines.append(
-            f"`{i+1:2d}.` {status_emoji} **{formatted_date}** - {status.title()} - {urgency}"
+            f"`{i + 1:2d}.` {status_emoji} **{formatted_date}** - {status.title()} - {urgency}"
         )
 
     result = f"📋 **Your Django News Assignments** ({len(user_dates)} total)\n\n"

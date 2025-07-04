@@ -238,7 +238,7 @@ def identify_first_timers(merged_prs, pr_message):
 
 def pr_modifies_release_files(pr_number):
     """Check if a PR modifies release files using GitHub CLI"""
-    command = f"gh pr view {pr_number} --repo django/django " "--json files"
+    command = f"gh pr view {pr_number} --repo django/django --json files"
     response = send_command(command)
 
     for file in response["files"]:
