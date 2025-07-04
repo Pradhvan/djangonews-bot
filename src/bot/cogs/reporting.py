@@ -2,15 +2,15 @@
 Reporting commands - !report
 """
 
-import json
 import sys
 from pathlib import Path
 
-import aiofiles
 from discord.ext import commands
 
 # Add src directory to path for imports
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
+
+from utils.github import get_latest_weekly_report
 
 
 class ReportingCog(commands.Cog):
@@ -86,10 +86,17 @@ class ReportingCog(commands.Cog):
     @commands.command(name="report")
     async def report(self, ctx, md: str = None):
         """Generate weekly PR summary report"""
-        filename = await self.bot.generate_pr_summary()
-        async with aiofiles.open(filename, mode="r") as f:
-            contents = await f.read()
-            pr_data = json.loads(contents)
+        # Ensure latest report exists in database
+        await self.bot.generate_pr_summary()
+
+        # Get report data from database
+        pr_data = await get_latest_weekly_report(self.cursor)
+
+        if not pr_data:
+            await ctx.send(
+                "❌ **No weekly report available**\nThere seems to be an issue generating the weekly PR summary. Please try again later."
+            )
+            return
 
         short_summary = await ReportingCog._format_report(pr_data)
         list_modifying_prs = await ReportingCog._format_list_prs(pr_data)

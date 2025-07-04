@@ -44,7 +44,8 @@ class MigrationRunner:
             print(f"❌ Failed to backup database: {e}")
             raise
 
-    async def ensure_migrations_table(self, conn):
+    @staticmethod
+    async def ensure_migrations_table(conn):
         """Create migrations tracking table if it doesn't exist"""
         await conn.execute(
             """
@@ -85,7 +86,8 @@ class MigrationRunner:
 
         return sorted(migrations, key=lambda x: x["id"])
 
-    async def load_migration_module(self, migration_file):
+    @staticmethod
+    async def load_migration_module(migration_file):
         """Load a migration module dynamically"""
         spec = importlib.util.spec_from_file_location(
             "migration_module", migration_file
@@ -108,7 +110,7 @@ class MigrationRunner:
 
         # Check if migration has setup_initial_database_if_missing (for migration 00)
         if hasattr(module, "setup_initial_database_if_missing"):
-            await module.setup_initial_database_if_missing(conn, self.db_path)
+            await module.setup_initial_database_if_missing(conn)
 
         await module.apply_migration(conn)
 

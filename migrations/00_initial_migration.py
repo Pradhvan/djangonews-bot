@@ -8,7 +8,6 @@ This migration handles the original column additions and indexes:
 - Performance indexes
 """
 
-import os
 from pathlib import Path
 
 
@@ -34,7 +33,7 @@ async def check_migration_needed(conn):
     return migrations_needed
 
 
-async def setup_initial_database_if_missing(conn, db_path):
+async def setup_initial_database_if_missing(conn):
     """Create initial database from schema if it doesn't exist"""
     # Check if volunteers table exists
     async with conn.execute(

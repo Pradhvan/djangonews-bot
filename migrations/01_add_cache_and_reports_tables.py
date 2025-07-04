@@ -6,9 +6,6 @@ This migration adds:
 - weekly_reports table for storing weekly PR reports with auto-cleanup
 """
 
-import json
-from datetime import datetime
-
 
 async def check_migration_needed(conn):
     """Check if this migration is needed"""
