@@ -24,6 +24,13 @@ CREATE TABLE IF NOT EXISTS cache_entries (
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
+-- Bot state table for tracking persistent bot state
+CREATE TABLE IF NOT EXISTS bot_state (
+    key TEXT PRIMARY KEY,
+    value TEXT,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
 -- Weekly reports table for storing PR summaries
 CREATE TABLE IF NOT EXISTS weekly_reports (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -53,6 +60,9 @@ CREATE INDEX IF NOT EXISTS idx_volunteers_name_taken ON volunteers(name, is_take
 
 -- Indexes for cache_entries table
 CREATE INDEX IF NOT EXISTS idx_cache_entries_key ON cache_entries(key);
+
+-- Indexes for bot_state table
+CREATE INDEX IF NOT EXISTS idx_bot_state_key ON bot_state(key);
 
 -- Indexes for weekly_reports table
 CREATE INDEX IF NOT EXISTS idx_weekly_reports_dates ON weekly_reports(start_date, end_date);
