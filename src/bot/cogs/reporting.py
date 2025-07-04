@@ -61,7 +61,7 @@ class ReportingCog(commands.Cog):
         """Get user's profile for report attribution"""
         async with self.cursor.execute(
             """
-            SELECT volunteer_name, social_media_handle
+            SELECT volunteer_name, social_media_handle, organization, organization_link
             FROM volunteers
             WHERE name = ?
             LIMIT 1
@@ -74,11 +74,15 @@ class ReportingCog(commands.Cog):
                 return {
                     "volunteer_name": row[0] or "",
                     "social_media_handle": row[1] or "",
+                    "organization": row[2] or "",
+                    "organization_link": row[3] or "https://djangonaut.space/",
                 }
             else:
                 return {
                     "volunteer_name": "",
                     "social_media_handle": "",
+                    "organization": "Djangonaut Space",
+                    "organization_link": "https://djangonaut.space/",
                 }
 
     # ===== COMMANDS =====
@@ -109,6 +113,14 @@ class ReportingCog(commands.Cog):
             profile = await self._get_user_profile(user_name)
             volunteer_name = profile.get("volunteer_name", "")
             social_handle = profile.get("social_media_handle", "")
+            organization = profile.get("organization", "Djangonaut Space")
+            org_link = profile.get("organization_link", "https://djangonaut.space/")
+
+            # Format organization with link if available
+            if organization and org_link:
+                org_text = f"[{organization}]({org_link})"
+            else:
+                org_text = "[Djangonaut Space](https://djangonaut.space/)"
 
             # Create the template with user's volunteer name and social handle
             if volunteer_name:
@@ -123,9 +135,9 @@ class ReportingCog(commands.Cog):
                         social_text = f"[{volunteer_name}]({handle_link})"
                     else:
                         social_text = f"[{volunteer_name}]({social_handle})"
-                    author_text = f"{social_text} from"
+                    author_text = f"{social_text} from {org_text}"
                 else:
-                    author_text = f"{volunteer_name} from"
+                    author_text = f"{volunteer_name} from {org_text}"
             elif social_handle:
                 # Fallback to social handle if no volunteer name
                 if social_handle.startswith(("@", "http")):
@@ -137,16 +149,15 @@ class ReportingCog(commands.Cog):
                     social_text = f"[{social_handle}]({handle_link})"
                 else:
                     social_text = social_handle
-                author_text = f"{social_text} from"  # use social handle/link directly
+                author_text = f"{social_text} from {org_text}"
             else:
-                author_text = "your name here from"
+                author_text = f"your name here from {org_text}"
 
             await ctx.send(
-                f"```Today 'Updates to Django' is presented by {author_text} "
-                f"the [Djangonaut Space](https://djangonaut.space/)!🚀"
+                f"```Today 'Updates to Django' is presented by {author_text}!🚀"
                 f"\n\n{discord_summary}```"
                 f"\n{list_modifying_prs}\n\n"
-                f"💡 **Tip:** Use `!profile` to set your social media handle for automatic insertion!"
+                f"💡 **Tip:** Use `!profile` to set your profile information for automatic insertion!"
             )
         else:
             await ctx.send(f"📢 **Django Weekly Summary ({last_week})**")

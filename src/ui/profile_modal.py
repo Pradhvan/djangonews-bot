@@ -48,8 +48,25 @@ class ProfileModal(Modal):
         )
         self.add_item(self.reminder_time)
 
-        # Note: Timezone selection is handled separately via buttons
-        # Discord modals can only contain TextInput components
+        # Organization information (name and link)
+        self.organization = TextInput(
+            label="Organization (Optional)",
+            placeholder="e.g., Django Software Foundation",
+            default=self.current_profile.get("organization", ""),
+            max_length=100,
+            required=False,
+        )
+        self.add_item(self.organization)
+
+        # Organization link
+        self.organization_link = TextInput(
+            label="Organization Link (Optional)",
+            placeholder="e.g., https://www.djangoproject.com/foundation/",
+            default=self.current_profile.get("organization_link", ""),
+            max_length=200,
+            required=False,
+        )
+        self.add_item(self.organization_link)
 
     async def on_submit(self, interaction: discord.Interaction, *args, **kwargs):
         """Handle profile submission"""
@@ -66,10 +83,18 @@ class ProfileModal(Modal):
         # Get form values
         volunteer_name = self.volunteer_name.value.strip()
         social_handle = self.social_handle.value.strip()
+        organization = self.organization.value.strip()
+        organization_link = self.organization_link.value.strip()
 
         try:
             # Update or create profile (timezone handled separately)
-            await self._save_profile(volunteer_name, social_handle, reminder_time)
+            await self._save_profile(
+                volunteer_name,
+                social_handle,
+                reminder_time,
+                organization,
+                organization_link,
+            )
 
             # Create success embed
             embed = discord.Embed(
@@ -89,6 +114,12 @@ class ProfileModal(Modal):
             if reminder_time:
                 embed.add_field(
                     name="⏰ Reminder Time", value=reminder_time, inline=True
+                )
+            if organization:
+                embed.add_field(name="🏢 Organization", value=organization, inline=True)
+            if organization_link:
+                embed.add_field(
+                    name="🔗 Organization Link", value=organization_link, inline=True
                 )
 
             embed.add_field(
@@ -129,7 +160,12 @@ class ProfileModal(Modal):
             return False
 
     async def _save_profile(
-        self, volunteer_name: str, social_handle: str, reminder_time: str
+        self,
+        volunteer_name: str,
+        social_handle: str,
+        reminder_time: str,
+        organization: str = None,
+        organization_link: str = None,
     ):
         """Save profile to database"""
         # First check if user has any volunteer entries
@@ -143,13 +179,16 @@ class ProfileModal(Modal):
             await self.cursor.execute(
                 """
                 UPDATE volunteers
-                SET volunteer_name = ?, social_media_handle = ?, preferred_reminder_time = ?
+                SET volunteer_name = ?, social_media_handle = ?,
+                    preferred_reminder_time = ?, organization = ?, organization_link = ?
                 WHERE name = ?
                 """,
                 (
                     volunteer_name or None,
                     social_handle or None,
                     reminder_time or None,
+                    organization or None,
+                    organization_link or None,
                     self.user_name,
                 ),
             )
@@ -157,14 +196,17 @@ class ProfileModal(Modal):
             # Create a profile entry (this shouldn't happen often, but just in case)
             await self.cursor.execute(
                 """
-                INSERT INTO volunteers (name, reminder_date, due_date, volunteer_name, social_media_handle, preferred_reminder_time, is_taken)
-                VALUES (?, '1970-01-01', '1970-01-01', ?, ?, ?, 0)
+                INSERT INTO volunteers (name, reminder_date, due_date, volunteer_name,
+                                     social_media_handle, preferred_reminder_time, organization, organization_link, is_taken)
+                VALUES (?, '1970-01-01', '1970-01-01', ?, ?, ?, ?, ?, 0)
                 """,
                 (
                     self.user_name,
                     volunteer_name or None,
                     social_handle or None,
                     reminder_time or None,
+                    organization or None,
+                    organization_link or None,
                 ),
             )
 
@@ -367,7 +409,7 @@ class ProfileSetupView(View):
         """Get current profile data from database"""
         async with self.cursor.execute(
             """
-            SELECT timezone, social_media_handle, preferred_reminder_time, volunteer_name
+            SELECT timezone, social_media_handle, preferred_reminder_time, volunteer_name, organization, organization_link
             FROM volunteers
             WHERE name = ?
             LIMIT 1
@@ -382,6 +424,8 @@ class ProfileSetupView(View):
                     "social_media_handle": row[1] or "",
                     "preferred_reminder_time": row[2] or "09:00",
                     "volunteer_name": row[3] or "",
+                    "organization": row[4] or "",
+                    "organization_link": row[5] or "",
                 }
             else:
                 return {
@@ -389,6 +433,8 @@ class ProfileSetupView(View):
                     "social_media_handle": "",
                     "preferred_reminder_time": "09:00",
                     "volunteer_name": "",
+                    "organization": "",
+                    "organization_link": "",
                 }
 
     async def _create_profile_embed(self, profile: dict) -> discord.Embed:
@@ -427,6 +473,20 @@ class ProfileSetupView(View):
         embed.add_field(
             name="📱 Social Handle",
             value=profile["social_media_handle"] or "Not set",
+            inline=True,
+        )
+
+        # Organization
+        embed.add_field(
+            name="🏢 Organization",
+            value=profile["organization"] or "Not set",
+            inline=True,
+        )
+
+        # Organization link
+        embed.add_field(
+            name="🔗 Organization Link",
+            value=profile["organization_link"] or "Not set",
             inline=True,
         )
 
