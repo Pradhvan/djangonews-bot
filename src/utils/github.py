@@ -102,10 +102,14 @@ async def get_django_welcome_message(db_connection):
         return ""
 
     # Check database cache and compare SHA
-    async with db_connection.execute(
-        "SELECT value, commit_sha FROM cache_entries WHERE key = ?", (cache_key,)
-    ) as cursor:
-        cached_row = await cursor.fetchone()
+    try:
+        async with db_connection.execute(
+            "SELECT value, commit_sha FROM cache_entries WHERE key = ?", (cache_key,)
+        ) as cursor:
+            cached_row = await cursor.fetchone()
+    except Exception as e:
+        print(f"Warning: Could not access cache_entries table: {e}")
+        cached_row = None
 
     if cached_row:
         cached_value, cached_sha = cached_row
@@ -147,16 +151,18 @@ async def get_django_welcome_message(db_connection):
                 break
 
         # Save to database cache
-        await db_connection.execute(
-            """
-            INSERT OR REPLACE INTO cache_entries (key, value, commit_sha, updated_at)
-            VALUES (?, ?, ?, CURRENT_TIMESTAMP)
-            """,
-            (cache_key, pr_message, current_sha),
-        )
-        await db_connection.commit()
-
-        print(f"Cached pr-message to database: {pr_message[:50]}...")
+        try:
+            await db_connection.execute(
+                """
+                INSERT OR REPLACE INTO cache_entries (key, value, commit_sha, updated_at)
+                VALUES (?, ?, ?, CURRENT_TIMESTAMP)
+                """,
+                (cache_key, pr_message, current_sha),
+            )
+            await db_connection.commit()
+            print(f"Cached pr-message to database: {pr_message[:50]}...")
+        except Exception as e:
+            print(f"Warning: Could not save to cache_entries table: {e}")
         return pr_message
 
     except Exception as e:

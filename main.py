@@ -80,10 +80,23 @@ class VolunteerBot(commands.Bot):
 
             # Create initial database from schema
             await self._create_initial_database()
-            return True
+            return True  # Fresh database is fully set up
 
-        # Check if migrations are needed
+        # Check if migrations are needed for existing database
         async with aiosqlite.connect(self.db_path) as conn:
+            # Check if applied_migrations table exists (indicates migration system is in use)
+            async with conn.execute(
+                "SELECT name FROM sqlite_master WHERE type='table' AND name='applied_migrations'"
+            ) as cursor:
+                has_migration_table = await cursor.fetchone()
+
+            if not has_migration_table:
+                print(
+                    "⚠️  Old database format detected - migration system not initialized"
+                )
+                print("   Run: python migrate.py")
+                return False
+
             # Check volunteers table columns
             async with conn.execute("PRAGMA table_info(volunteers)") as cursor:
                 columns = await cursor.fetchall()
@@ -137,8 +150,34 @@ class VolunteerBot(commands.Bot):
                 schema_content = await f.read()
             await conn.executescript(schema_content)
             await conn.commit()
+
+            # Mark all migrations as applied since schema.sql contains everything
+            await self._mark_all_migrations_applied(conn)
+
             print("✅ Initial database created from schema.sql")
         return True
+
+    async def _mark_all_migrations_applied(self, conn):
+        """Mark all existing migrations as applied for fresh database"""
+        # Get list of all migration files
+        migrations_dir = Path(__file__).parent / "migrations"
+
+        if not migrations_dir.exists():
+            return
+
+        migration_files = list(migrations_dir.glob("[0-9][0-9]_*.py"))
+
+        for migration_file in migration_files:
+            migration_id = migration_file.stem[:2]
+            migration_name = migration_file.stem[3:]
+
+            await conn.execute(
+                "INSERT OR REPLACE INTO applied_migrations (migration_id, migration_name) VALUES (?, ?)",
+                (migration_id, migration_name),
+            )
+
+        await conn.commit()
+        print(f"✅ Marked {len(migration_files)} migrations as applied")
 
     async def _setup_initial_volunteer_dates(self):
         """Set up initial volunteer dates if database is empty"""
