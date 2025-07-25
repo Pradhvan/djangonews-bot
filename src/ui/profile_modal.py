@@ -8,6 +8,10 @@ from discord.ui import Modal, Select, TextInput, View
 
 from utils.timezone import get_popular_timezones, validate_timezone
 
+import structlog
+
+logger = structlog.get_logger()
+
 
 class ProfileModal(Modal):
     """Modal for editing volunteer profile information"""
@@ -103,12 +107,34 @@ class ProfileModal(Modal):
 
             await interaction.response.send_message(embed=embed, ephemeral=True)
 
+            # create a log string to handle changes in profile modal
+            profile_fields = {
+                (volunteer_name, 'volunteer_name', 'volunteer name'),
+                (social_handle, 'social_media_handle', 'social media handle'),
+                (reminder_time, 'preferred_reminder_time', 'reminder'),
+            }
+
+            log_updates = []
+
+            for new_value, key, description in profile_fields:
+                new_value_stripped = new_value.strip()
+                old_value = self.current_profile.get(key, "")
+
+                if new_value_stripped and old_value != new_value_stripped:
+                    log_updates.append(f"the {description} changed from '{old_value}' to '{new_value_stripped}'")
+
+            if log_updates:
+                logger.info(f"The user {self.user_name} updated " + ", ".join(log_updates) + ".")
+            else:
+                logger.info(f"The user {self.user_name} clicked on edit profile but made no changes.")
+
         except Exception as e:
             await interaction.response.send_message(
                 f"❌ **Error saving profile:** {str(e)}\n"
                 "Please try again or contact an admin.",
                 ephemeral=True,
             )
+            logger.error(f"Error in {self.user_name}'s profile: {str(e)} ")
 
     @staticmethod
     def _validate_time_format(time_str: str) -> bool:
@@ -120,21 +146,21 @@ class ProfileModal(Modal):
             hour = int(hours)
             minute = int(minutes)
             return (
-                0 <= hour <= 23
-                and 0 <= minute <= 59
-                and len(hours) == 2
-                and len(minutes) == 2
+                    0 <= hour <= 23
+                    and 0 <= minute <= 59
+                    and len(hours) == 2
+                    and len(minutes) == 2
             )
         except (ValueError, IndexError):
             return False
 
     async def _save_profile(
-        self, volunteer_name: str, social_handle: str, reminder_time: str
+            self, volunteer_name: str, social_handle: str, reminder_time: str
     ):
         """Save profile to database"""
         # First check if user has any volunteer entries
         async with self.cursor.execute(
-            "SELECT id FROM volunteers WHERE name = ? LIMIT 1", (self.user_name,)
+                "SELECT id FROM volunteers WHERE name = ? LIMIT 1", (self.user_name,)
         ) as cursor:
             user_exists = await cursor.fetchone()
 
@@ -184,8 +210,8 @@ class TimezoneSelectView(View):
         options = [
             SelectOption(label=display_name, value=tz_id, description=tz_id)
             for tz_id, display_name in timezone_options[
-                :24
-            ]  # Leave room for "Other" option
+                                       :24
+                                       ]  # Leave room for "Other" option
         ]
 
         # Add "Other" option
@@ -232,8 +258,8 @@ class TimezoneSelectView(View):
 
         # Update user's timezone
         async with self.cursor.execute(
-            "UPDATE volunteers SET timezone = ? WHERE name = ?",
-            (timezone, self.user_name),
+                "UPDATE volunteers SET timezone = ? WHERE name = ?",
+                (timezone, self.user_name),
         ) as cursor:
             await self.cursor.commit()
             success = cursor.rowcount > 0
@@ -260,6 +286,7 @@ class TimezoneSelectView(View):
                 "Use `!volunteer` to sign up for dates.",
                 ephemeral=True,
             )
+            logger.error(f"Error in profile: {self.user_name} failed to update timezone.")
 
 
 class CustomTimezoneModal(Modal):
@@ -290,12 +317,13 @@ class CustomTimezoneModal(Modal):
                 "See [timezone list](https://en.wikipedia.org/wiki/List_of_tz_database_time_zones) for valid options.",
                 ephemeral=True,
             )
+            logger.error(f"Error in profile: {self.user_name} invalid timezone {timezone} ")
             return
 
         # Update user's timezone
         async with self.cursor.execute(
-            "UPDATE volunteers SET timezone = ? WHERE name = ?",
-            (timezone, self.user_name),
+                "UPDATE volunteers SET timezone = ? WHERE name = ?",
+                (timezone, self.user_name),
         ) as cursor:
             await self.cursor.commit()
             success = cursor.rowcount > 0
@@ -312,6 +340,7 @@ class CustomTimezoneModal(Modal):
                 "❌ **Error:** Could not update timezone. Make sure you have volunteer assignments first.",
                 ephemeral=True,
             )
+            logger.error(f"Error in profile:{self.user_name} failed to update this custom timezone {timezone}.")
 
 
 class ProfileSetupView(View):
@@ -326,7 +355,7 @@ class ProfileSetupView(View):
         label="Edit Profile", style=discord.ButtonStyle.primary, emoji="📝"
     )
     async def edit_profile(
-        self, interaction: discord.Interaction, button: discord.ui.Button
+            self, interaction: discord.Interaction, button: discord.ui.Button
     ):
         """Open profile editing modal"""
         # Get current profile data
@@ -338,7 +367,7 @@ class ProfileSetupView(View):
         label="Update Timezone", style=discord.ButtonStyle.secondary, emoji="🌍"
     )
     async def quick_timezone(
-        self, interaction: discord.Interaction, button: discord.ui.Button
+            self, interaction: discord.Interaction, button: discord.ui.Button
     ):
         """Open timezone selection (separate from full profile)"""
         view = TimezoneSelectView(self.cursor, self.user_name)
@@ -356,7 +385,7 @@ class ProfileSetupView(View):
         label="View Profile", style=discord.ButtonStyle.success, emoji="👀"
     )
     async def view_profile(
-        self, interaction: discord.Interaction, button: discord.ui.Button
+            self, interaction: discord.Interaction, button: discord.ui.Button
     ):
         """Show current profile"""
         profile = await self._get_current_profile()
@@ -366,13 +395,13 @@ class ProfileSetupView(View):
     async def _get_current_profile(self) -> dict:
         """Get current profile data from database"""
         async with self.cursor.execute(
-            """
+                """
             SELECT timezone, social_media_handle, preferred_reminder_time, volunteer_name
             FROM volunteers
             WHERE name = ?
             LIMIT 1
             """,
-            (self.user_name,),
+                (self.user_name,),
         ) as cursor:
             row = await cursor.fetchone()
 
