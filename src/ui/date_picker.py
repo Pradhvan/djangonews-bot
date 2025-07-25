@@ -6,6 +6,9 @@ import arrow
 import discord
 from discord import SelectOption
 from discord.ui import Select, View
+import structlog
+
+logger = structlog.get_logger()
 
 
 class DatePickerView(View):
@@ -69,14 +72,14 @@ class DatePickerView(View):
         """Get list of available volunteer dates"""
         current_date = arrow.utcnow().format("YYYY-MM-DD")
         async with self.cursor.execute(
-            """
+                """
             SELECT due_date
             FROM volunteers
             WHERE due_date > ? AND is_taken = 0
             ORDER BY due_date ASC
             LIMIT 25
             """,
-            (current_date,),
+                (current_date,),
         ) as cursor:
             rows = await cursor.fetchall()
             return [row[0] for row in rows]
@@ -85,14 +88,14 @@ class DatePickerView(View):
         """Get list of user's assigned dates"""
         current_date = arrow.utcnow().format("YYYY-MM-DD")
         async with self.cursor.execute(
-            """
+                """
             SELECT due_date
             FROM volunteers
             WHERE name = ? AND is_taken = 1 AND due_date > ?
             ORDER BY due_date ASC
             LIMIT 25
             """,
-            (self.user_name, current_date),
+                (self.user_name, current_date),
         ) as cursor:
             rows = await cursor.fetchall()
             return [row[0] for row in rows]
@@ -129,7 +132,7 @@ class DatePickerView(View):
                 due_date = ? AND (? = 1 OR name = ?)
         """
         async with self.cursor.execute(
-            query, (is_taken, is_taken, user_name, date, is_taken, user_name)
+                query, (is_taken, is_taken, user_name, date, is_taken, user_name)
         ) as cursor:
             await self.cursor.commit()
             success = cursor.rowcount > 0
@@ -145,6 +148,7 @@ class DatePickerView(View):
                     f"📝 You'll receive reminders as the date approaches.",
                     ephemeral=True,
                 )
+                logger.info(f"{user_name} choose to volunteer on: {formatted_date}")
             else:
                 await interaction.response.send_message(
                     f"✅ **Successfully unvolunteered!**\n"
@@ -159,7 +163,7 @@ class DatePickerView(View):
                 f"Please try again or contact an admin.",
                 ephemeral=True,
             )
-
+            logger.error(f"Error date picker action: {self.action} ")
         # Disable the view after use
         for item in self.children:
             item.disabled = True
@@ -208,13 +212,13 @@ class UserDatesView(View):
     async def _get_user_dates_with_status(self):
         """Get user's assigned dates with their status"""
         async with self.cursor.execute(
-            """
+                """
             SELECT due_date, status
             FROM volunteers
             WHERE name = ? AND is_taken = 1
             ORDER BY due_date ASC
             """,
-            (self.user_name,),
+                (self.user_name,),
         ) as cursor:
             return await cursor.fetchall()
 
@@ -257,17 +261,17 @@ class ConfirmUnvolunteerView(View):
         label="Yes, Unvolunteer", style=discord.ButtonStyle.danger, emoji="✅"
     )
     async def confirm_unvolunteer(
-        self, interaction: discord.Interaction, button: discord.ui.Button
+            self, interaction: discord.Interaction, button: discord.ui.Button
     ):
         """Confirm and process unvolunteering"""
         # Update database
         async with self.cursor.execute(
-            """
+                """
             UPDATE volunteers
             SET is_taken = 0, name = NULL
             WHERE due_date = ? AND name = ?
             """,
-            (self.date, self.user_name),
+                (self.date, self.user_name),
         ) as cursor:
             await self.cursor.commit()
             success = cursor.rowcount > 0
@@ -281,6 +285,7 @@ class ConfirmUnvolunteerView(View):
                 f"💬 Please inform folks on django-news channel so others can pick it up.",
                 ephemeral=True,
             )
+            logger.info(f"{self.user_name} choose to unvolunteer on: {formatted_date}")
         else:
             await interaction.response.send_message(
                 f"❌ **Failed to unvolunteer from {formatted_date}**\n"
@@ -295,7 +300,7 @@ class ConfirmUnvolunteerView(View):
 
     @discord.ui.button(label="Cancel", style=discord.ButtonStyle.secondary, emoji="❌")
     async def cancel_unvolunteer(
-        self, interaction: discord.Interaction, button: discord.ui.Button
+            self, interaction: discord.Interaction, button: discord.ui.Button
     ):
         """Cancel the unvolunteer action"""
         await interaction.response.send_message(
