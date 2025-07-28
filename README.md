@@ -7,13 +7,13 @@ A Discord bot to help coordinate weekly volunteer efforts for the Django News ne
 
 The full guide is now available in the [Wiki](https://github.com/Pradhvan/djangonews-bot/wiki):
 
-- [✍️ Writing Updates](https://github.com/Pradhvan/djangonews-bot/wiki/Writing-Updates-to-Django-for-Django-News)  
+- [✍️ Writing Updates](https://github.com/Pradhvan/djangonews-bot/wiki/Writing-Updates-to-Django-for-Django-News)
   How to write and submit your weekly PR summary.
 
-- [🤖 Know Your Bot](https://github.com/Pradhvan/djangonews-bot/wiki/%F0%9F%A4%96-Know-your-bot)  
+- [🤖 Know Your Bot](https://github.com/Pradhvan/djangonews-bot/wiki/%F0%9F%A4%96-Know-your-bot)
   All bot commands explained with usage tips.
 
-- [🛠️ Managing in Production](https://github.com/Pradhvan/djangonews-bot/wiki/Managing-the-Bot-Service-in-Production)  
+- [🛠️ Managing in Production](https://github.com/Pradhvan/djangonews-bot/wiki/Managing-the-Bot-Service-in-Production)
   For maintainers deploying or restarting the bot.
 
 

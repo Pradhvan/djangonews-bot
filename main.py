@@ -15,15 +15,16 @@ from dotenv import load_dotenv
 src_path = Path(__file__).parent / "src"
 sys.path.insert(0, str(src_path))
 
+import logging
+from logging.handlers import RotatingFileHandler
+
+import structlog
+
 from src.bot.cogs.automation import AutomationCog
 from src.bot.cogs.profile import ProfileCog
 from src.bot.cogs.reporting import ReportingCog
 from src.bot.cogs.volunteer import VolunteerCog
 from src.utils.github import fetch_django_pr_summary, get_django_welcome_message
-
-import logging
-import structlog
-from logging.handlers import RotatingFileHandler
 
 load_dotenv()
 TOKEN = os.getenv("DISCORD_TOKEN")
@@ -189,19 +190,14 @@ if __name__ == "__main__":
     log_file = "bot.log"
 
     file_handler = RotatingFileHandler(
-        log_file,
-        maxBytes=10 * 1024 * 1024,  # 10MB
-        backupCount=5
+        log_file, maxBytes=10 * 1024 * 1024, backupCount=5  # 10MB
     )
     file_handler.setFormatter(logging.Formatter("%(message)s"))
 
     console_handler = logging.StreamHandler()
     console_handler.setFormatter(logging.Formatter("%(message)s"))
 
-    logging.basicConfig(
-        level=logging.INFO,
-        handlers=[file_handler, console_handler]
-    )
+    logging.basicConfig(level=logging.INFO, handlers=[file_handler, console_handler])
     # Set up structlog
     structlog.configure(
         processors=[

@@ -2,12 +2,11 @@
 Simple timezone selection view for basic timezone setting
 """
 
+import structlog
 from discord import Interaction, SelectOption
 from discord.ui import Select, View
 
 from utils.timezone import get_popular_timezones, validate_timezone
-
-import structlog
 
 logger = structlog.get_logger()
 
@@ -48,7 +47,9 @@ class TimezoneView(View):
                 "Please select a valid timezone from the list.",
                 ephemeral=True,
             )
-            logger.error(f"Invalid timezone: the user {user_name} choose {selected_timezone}.")
+            logger.error(
+                f"Invalid timezone: the user {user_name} choose {selected_timezone}."
+            )
             return
 
         query = """
