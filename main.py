@@ -21,6 +21,10 @@ from src.bot.cogs.reporting import ReportingCog
 from src.bot.cogs.volunteer import VolunteerCog
 from src.utils.github import fetch_django_pr_summary, get_django_welcome_message
 
+import logging
+import structlog
+from logging.handlers import RotatingFileHandler
+
 load_dotenv()
 TOKEN = os.getenv("DISCORD_TOKEN")
 DATABASE = os.getenv("DATABASE")
@@ -181,6 +185,38 @@ class VolunteerBot(commands.Bot):
 
 
 if __name__ == "__main__":
-    logging.basicConfig(level=logging.INFO)
+    # Set up standard logging
+    log_file = "bot.log"
+
+    file_handler = RotatingFileHandler(
+        log_file,
+        maxBytes=10 * 1024 * 1024,  # 10MB
+        backupCount=5
+    )
+    file_handler.setFormatter(logging.Formatter("%(message)s"))
+
+    console_handler = logging.StreamHandler()
+    console_handler.setFormatter(logging.Formatter("%(message)s"))
+
+    logging.basicConfig(
+        level=logging.INFO,
+        handlers=[file_handler, console_handler]
+    )
+    # Set up structlog
+    structlog.configure(
+        processors=[
+            structlog.processors.add_log_level,
+            structlog.processors.TimeStamper(fmt="iso"),
+            structlog.processors.JSONRenderer(ensure_ascii=False),
+        ],
+        logger_factory=structlog.stdlib.LoggerFactory(),
+        wrapper_class=structlog.make_filtering_bound_logger(logging.INFO),
+        cache_logger_on_first_use=True,
+    )
+
+    # Global logger
+    logger = structlog.get_logger()
+    logger.info("Logging with structlog")
+
     bot = VolunteerBot()
     bot.run(TOKEN)
