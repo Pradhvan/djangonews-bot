@@ -10,16 +10,15 @@ import arrow
 import discord
 from discord.ext import commands
 from dotenv import load_dotenv
-
-# Add src directory to path for new imports
-src_path = Path(__file__).parent / "src"
-sys.path.insert(0, str(src_path))
-
 from src.bot.cogs.automation import AutomationCog
 from src.bot.cogs.profile import ProfileCog
 from src.bot.cogs.reporting import ReportingCog
 from src.bot.cogs.volunteer import VolunteerCog
-from src.utils.github import fetch_django_pr_summary, get_django_welcome_message
+from src.utils.github import fetch_django_pr_summary
+
+# Add src directory to path for new imports
+src_path = Path(__file__).parent / "src"
+sys.path.insert(0, str(src_path))
 
 load_dotenv()
 TOKEN = os.getenv("DISCORD_TOKEN")
@@ -217,13 +216,6 @@ class VolunteerBot(commands.Bot):
 
         # Connect to database early for setup operations
         self.cursor = await aiosqlite.connect(self.db_path)
-
-        # Get and cache Django's welcome message using database
-        welcome_phrases = await get_django_welcome_message(self.cursor)
-        if not welcome_phrases:
-            print("⚠️  Cannot fetch Django welcome message")
-            print("   Check GitHub CLI authentication and network connectivity")
-        self.django_welcome_phrases = welcome_phrases
 
         # Generate PR summary (now stores in database)
         await self.generate_pr_summary()
