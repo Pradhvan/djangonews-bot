@@ -10,6 +10,11 @@ import arrow
 import discord
 from discord.ext import commands
 from dotenv import load_dotenv
+
+from logging.handlers import RotatingFileHandler
+
+import structlog
+
 from src.bot.cogs.automation import AutomationCog
 from src.bot.cogs.profile import ProfileCog
 from src.bot.cogs.reporting import ReportingCog
