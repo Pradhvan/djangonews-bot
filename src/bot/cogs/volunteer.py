@@ -249,7 +249,7 @@ class VolunteerCog(commands.Cog):
 
         if not user_dates:
             await ctx.send(
-                "📅 **No Assigned Dates**\\n"
+                "📅 **No Assigned Dates**\n"
                 "You currently have no volunteer assignments. "
                 "Use `!volunteer` to sign up for dates!"
             )

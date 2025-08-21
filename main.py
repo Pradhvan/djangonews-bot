@@ -15,6 +15,10 @@ from dotenv import load_dotenv
 src_path = Path(__file__).parent / "src"
 sys.path.insert(0, str(src_path))
 
+from logging.handlers import RotatingFileHandler
+
+import structlog
+
 from src.bot.cogs.automation import AutomationCog
 from src.bot.cogs.profile import ProfileCog
 from src.bot.cogs.reporting import ReportingCog
@@ -245,6 +249,33 @@ class VolunteerBot(commands.Bot):
 
 
 if __name__ == "__main__":
-    logging.basicConfig(level=logging.INFO)
+    # Set up standard logging
+    log_file = "bot.log"
+
+    file_handler = RotatingFileHandler(
+        log_file, maxBytes=10 * 1024 * 1024, backupCount=5  # 10MB
+    )
+    file_handler.setFormatter(logging.Formatter("%(message)s"))
+
+    console_handler = logging.StreamHandler()
+    console_handler.setFormatter(logging.Formatter("%(message)s"))
+
+    logging.basicConfig(level=logging.INFO, handlers=[file_handler, console_handler])
+    # Set up structlog
+    structlog.configure(
+        processors=[
+            structlog.processors.add_log_level,
+            structlog.processors.TimeStamper(fmt="iso"),
+            structlog.processors.JSONRenderer(ensure_ascii=False),
+        ],
+        logger_factory=structlog.stdlib.LoggerFactory(),
+        wrapper_class=structlog.make_filtering_bound_logger(logging.INFO),
+        cache_logger_on_first_use=True,
+    )
+
+    # Global logger
+    logger = structlog.get_logger()
+    logger.info("Logging with structlog")
+
     bot = VolunteerBot()
     bot.run(TOKEN)

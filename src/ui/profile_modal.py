@@ -3,10 +3,13 @@ Profile modal UI components for volunteer profile management
 """
 
 import discord
+import structlog
 from discord import SelectOption
 from discord.ui import Modal, Select, TextInput, View
 
 from utils.timezone import get_popular_timezones, validate_timezone
+
+logger = structlog.get_logger()
 
 
 class ProfileModal(Modal):
@@ -134,12 +137,40 @@ class ProfileModal(Modal):
 
             await interaction.response.send_message(embed=embed, ephemeral=True)
 
+            # create a log string to handle changes in profile modal
+            profile_fields = {
+                (volunteer_name, "volunteer_name", "volunteer name"),
+                (social_handle, "social_media_handle", "social media handle"),
+                (reminder_time, "preferred_reminder_time", "reminder"),
+            }
+
+            log_updates = []
+
+            for new_value, key, description in profile_fields:
+                new_value_stripped = new_value.strip()
+                old_value = self.current_profile.get(key, "")
+
+                if new_value_stripped and old_value != new_value_stripped:
+                    log_updates.append(
+                        f"the {description} changed from '{old_value}' to '{new_value_stripped}'"
+                    )
+
+            if log_updates:
+                logger.info(
+                    f"The user {self.user_name} updated " + ", ".join(log_updates) + "."
+                )
+            else:
+                logger.info(
+                    f"The user {self.user_name} clicked on edit profile but made no changes."
+                )
+
         except Exception as e:
             await interaction.response.send_message(
                 f"❌ **Error saving profile:** {str(e)}\n"
                 "Please try again or contact an admin.",
                 ephemeral=True,
             )
+            logger.error(f"Error in {self.user_name}'s profile: {str(e)} ")
 
     @staticmethod
     def _validate_time_format(time_str: str) -> bool:
@@ -302,6 +333,9 @@ class TimezoneSelectView(View):
                 "Use `!volunteer` to sign up for dates.",
                 ephemeral=True,
             )
+            logger.error(
+                f"Error in profile: {self.user_name} failed to update timezone."
+            )
 
 
 class CustomTimezoneModal(Modal):
@@ -332,6 +366,9 @@ class CustomTimezoneModal(Modal):
                 "See [timezone list](https://en.wikipedia.org/wiki/List_of_tz_database_time_zones) for valid options.",
                 ephemeral=True,
             )
+            logger.error(
+                f"Error in profile: {self.user_name} invalid timezone {timezone} "
+            )
             return
 
         # Update user's timezone
@@ -353,6 +390,9 @@ class CustomTimezoneModal(Modal):
             await interaction.response.send_message(
                 "❌ **Error:** Could not update timezone. Make sure you have volunteer assignments first.",
                 ephemeral=True,
+            )
+            logger.error(
+                f"Error in profile:{self.user_name} failed to update this custom timezone {timezone}."
             )
 
 
