@@ -75,4 +75,4 @@ CREATE INDEX IF NOT EXISTS idx_weekly_reports_dates ON weekly_reports(start_date
 CREATE INDEX IF NOT EXISTS idx_weekly_reports_created ON weekly_reports(created_at);
 
 -- Indexes for contributors table
-CREATE INDEX IF NOT EXISTS idx_contributors_name ON contributors(login);
+CREATE INDEX IF NOT EXISTS idx_contributors_login ON contributors(login);
