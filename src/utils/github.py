@@ -106,8 +106,7 @@ async def identify_first_timers(merged_prs, start_date, db_connection):
             row = await cursor.fetchone()
 
         if row:
-            # already contributor
-            print(f"This author {author} is already a contributor")
+            # this author is already a contributor
             continue
         else:
             try:
