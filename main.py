@@ -114,7 +114,12 @@ class VolunteerBot(commands.Bot):
 
             # Check for new tables
             missing_tables = []
-            required_tables = ["cache_entries", "weekly_reports", "bot_state"]
+            required_tables = [
+                "cache_entries",
+                "weekly_reports",
+                "bot_state",
+                "contributors",
+            ]
 
             for table in required_tables:
                 async with conn.execute(
@@ -217,8 +222,13 @@ class VolunteerBot(commands.Bot):
         # Connect to database early for setup operations
         self.cursor = await aiosqlite.connect(self.db_path)
 
-        # Generate PR summary (now stores in database)
-        await self.generate_pr_summary()
+        try:
+            # Generate PR summary (now stores in database)
+            await self.generate_pr_summary()
+        except aiosqlite.OperationalError:
+            print("️ ⚠️ contributors table not created")
+            print("   Run: python migrate.py")
+            return
 
         # Set up initial dates if needed
         await self._setup_initial_volunteer_dates()

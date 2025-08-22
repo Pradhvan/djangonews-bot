@@ -14,12 +14,12 @@ async def migrate_database(db_path: str):
     logger = logging.getLogger(__name__)
 
     async with aiosqlite.connect(db_path) as conn:
+        migrations_needed = []
+
         # Check if new columns exist
         async with conn.execute("PRAGMA table_info(volunteers)") as cursor:
             columns = await cursor.fetchall()
             column_names = [col[1] for col in columns]
-
-        migrations_needed = []
 
         # Check for each new column
         if "social_media_handle" not in column_names:
@@ -35,6 +35,14 @@ async def migrate_database(db_path: str):
         if "volunteer_name" not in column_names:
             migrations_needed.append(
                 "ALTER TABLE volunteers ADD COLUMN volunteer_name TEXT"
+            )
+
+        async with conn.execute("PRAGMA table_info(contributors)") as cursor:
+            rows = await cursor.fetchall()
+
+        if not rows:
+            migrations_needed.append(
+                "CREATE TABLE contributors (id INTEGER PRIMARY KEY AUTOINCREMENT login TEXT NOT NULL UNIQUE)"
             )
 
         # Run migrations
@@ -67,6 +75,7 @@ async def create_indexes(db_path: str):
             "CREATE INDEX IF NOT EXISTS idx_volunteers_due_date ON volunteers(due_date)",
             "CREATE INDEX IF NOT EXISTS idx_volunteers_is_taken ON volunteers(is_taken)",
             "CREATE INDEX IF NOT EXISTS idx_volunteers_name_taken ON volunteers(name, is_taken)",
+            "CREATE INDEX IF NOT EXISTS idx_contributors_login ON contributors(login)",
         ]
 
         for index_sql in indexes:
