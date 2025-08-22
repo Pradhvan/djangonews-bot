@@ -27,7 +27,7 @@ async def apply_migration(conn):
     await conn.execute(
         """
         CREATE TABLE IF NOT EXISTS contributors (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            id INTEGER PRIMARY KEY,
             login TEXT NOT NULL UNIQUE
         )
         """

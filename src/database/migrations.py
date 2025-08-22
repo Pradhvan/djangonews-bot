@@ -42,7 +42,7 @@ async def migrate_database(db_path: str):
 
         if not rows:
             migrations_needed.append(
-                "CREATE TABLE contributors (id INTEGER PRIMARY KEY AUTOINCREMENT login TEXT NOT NULL UNIQUE)"
+                "CREATE TABLE contributors (id INTEGER PRIMARY KEY login TEXT NOT NULL UNIQUE)"
             )
 
         # Run migrations
