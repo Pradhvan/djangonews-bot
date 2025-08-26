@@ -11,10 +11,6 @@ import discord
 from discord.ext import commands
 from dotenv import load_dotenv
 
-# Add src directory to path for new imports
-src_path = Path(__file__).parent / "src"
-sys.path.insert(0, str(src_path))
-
 from logging.handlers import RotatingFileHandler
 
 import structlog
@@ -23,7 +19,11 @@ from src.bot.cogs.automation import AutomationCog
 from src.bot.cogs.profile import ProfileCog
 from src.bot.cogs.reporting import ReportingCog
 from src.bot.cogs.volunteer import VolunteerCog
-from src.utils.github import fetch_django_pr_summary, get_django_welcome_message
+from src.utils.github import fetch_django_pr_summary
+
+# Add src directory to path for new imports
+src_path = Path(__file__).parent / "src"
+sys.path.insert(0, str(src_path))
 
 load_dotenv()
 TOKEN = os.getenv("DISCORD_TOKEN")
@@ -119,7 +119,12 @@ class VolunteerBot(commands.Bot):
 
             # Check for new tables
             missing_tables = []
-            required_tables = ["cache_entries", "weekly_reports", "bot_state"]
+            required_tables = [
+                "cache_entries",
+                "weekly_reports",
+                "bot_state",
+                "contributors",
+            ]
 
             for table in required_tables:
                 async with conn.execute(
@@ -222,15 +227,13 @@ class VolunteerBot(commands.Bot):
         # Connect to database early for setup operations
         self.cursor = await aiosqlite.connect(self.db_path)
 
-        # Get and cache Django's welcome message using database
-        welcome_phrases = await get_django_welcome_message(self.cursor)
-        if not welcome_phrases:
-            print("⚠️  Cannot fetch Django welcome message")
-            print("   Check GitHub CLI authentication and network connectivity")
-        self.django_welcome_phrases = welcome_phrases
-
-        # Generate PR summary (now stores in database)
-        await self.generate_pr_summary()
+        try:
+            # Generate PR summary (now stores in database)
+            await self.generate_pr_summary()
+        except aiosqlite.OperationalError:
+            print("️ ⚠️ contributors table not created")
+            print("   Run: python migrate.py")
+            return
 
         # Set up initial dates if needed
         await self._setup_initial_volunteer_dates()
@@ -253,7 +256,9 @@ if __name__ == "__main__":
     log_file = "bot.log"
 
     file_handler = RotatingFileHandler(
-        log_file, maxBytes=10 * 1024 * 1024, backupCount=5  # 10MB
+        log_file,
+        maxBytes=10 * 1024 * 1024,
+        backupCount=5,  # 10MB
     )
     file_handler.setFormatter(logging.Formatter("%(message)s"))
 

@@ -50,7 +50,7 @@ def fetch_merged_prs(query, limit=200):
     return send_command(command)
 
 
-def get_full_name_contributors(first_timers):
+async def get_full_name_contributors(first_timers):
     """
     Update the first_timers list with full names from GitHub when available.
 
@@ -88,151 +88,50 @@ def get_full_name_contributors(first_timers):
     return updated_contributors
 
 
-async def get_django_welcome_message(db_connection):
-    """Get Django's current new contributor message, with database caching"""
-    cache_key = "django_welcome_message"
+async def identify_first_timers(merged_prs, start_date, db_connection):
+    """Identify first-timers checking on database first then using GitHub CLI"""
 
-    # Get current SHA from GitHub first
-    try:
-        command = "gh api repos/django/django/contents/.github/workflows/new_contributor_pr.yml"
-        result = send_command(command)
-        current_sha = result.get("sha", "unknown")
-    except Exception as e:
-        print(f"Error getting current SHA: {e}")
-        return ""
-
-    # Check database cache and compare SHA
-    try:
-        async with db_connection.execute(
-            "SELECT value, commit_sha FROM cache_entries WHERE key = ?", (cache_key,)
-        ) as cursor:
-            cached_row = await cursor.fetchone()
-    except Exception as e:
-        print(f"Warning: Could not access cache_entries table: {e}")
-        cached_row = None
-
-    if cached_row:
-        cached_value, cached_sha = cached_row
-        if cached_sha == current_sha and current_sha != "unknown":
-            print(f"Cache up-to-date (SHA: {current_sha[:8]}...)")
-            return cached_value
-        else:
-            print(f"SHA changed: {cached_sha[:8]}... → {current_sha[:8]}...")
-
-    # Fetch from GitHub (cache missing or SHA changed)
-    try:
-        print("Fetching Django workflow...")
-
-        # Decode and find pr-message
-        import base64
-
-        content = base64.b64decode(result["content"]).decode("utf-8")
-
-        # Parse pr-message
-        lines = content.split("\n")
-        pr_message = ""
-
-        for i, line in enumerate(lines):
-            if "pr-message:" in line:
-                if "|" in line:  # Multi-line YAML
-                    # Read the actual message content
-                    message_parts = []
-                    for j in range(i + 1, len(lines)):
-                        next_line = lines[j]
-                        if next_line.strip() and not next_line.startswith("  "):
-                            break
-                        if next_line.strip():
-                            message_parts.append(next_line.strip())
-                    pr_message = " ".join(message_parts)
-                else:  # Single-line
-                    pr_message = (
-                        line.split("pr-message:")[1].strip().strip('"').strip("'")
-                    )
-                break
-
-        # Save to database cache
-        try:
-            await db_connection.execute(
-                """
-                INSERT OR REPLACE INTO cache_entries (key, value, commit_sha, updated_at)
-                VALUES (?, ?, ?, CURRENT_TIMESTAMP)
-                """,
-                (cache_key, pr_message, current_sha),
-            )
-            await db_connection.commit()
-            print(f"Cached pr-message to database: {pr_message[:50]}...")
-        except Exception as e:
-            print(f"Warning: Could not save to cache_entries table: {e}")
-        return pr_message
-
-    except Exception as e:
-        print(f"Error fetching Django workflow: {e}")
-        return ""
-
-
-def identify_first_timers(merged_prs, pr_message):
-    """Identify first-time contributors by checking Django's GitHub Actions bot comments"""
     first_timers = []
+    unique_authors = {pr["author"]["login"] for pr in merged_prs}
 
-    print(
-        "Checking Django's GitHub Actions for first-time contributor determinations..."
-    )
-    print(f"Looking for pr-message: {pr_message[:50]}...")
+    for author in sorted(unique_authors):
+        async with db_connection.execute(
+            """
+                SELECT login
+                FROM contributors
+                WHERE login = ?
+                """,
+            (author,),
+        ) as cursor:
+            row = await cursor.fetchone()
 
-    for pr in merged_prs:
-        pr_number = pr["number"]
-        author = pr["author"]["login"]
+        if row:
+            # this author is already a contributor
+            continue
+        else:
+            try:
+                cmd = (
+                    "gh pr list --repo django/django "
+                    f'-S "is:pr is:merged author:{author} merged:<{start_date}" '
+                    "-L 1 --json number"
+                )
+                prev = send_command(cmd)
+                if not prev:
+                    first_timers.append(f"[{author}](https://github.com/{author})")
+                else:
+                    # is already a contributor
+                    # saved on database
+                    await db_connection.execute(
+                        """
+                        INSERT INTO contributors (login)
+                        VALUES (?)
+                        """,
+                        (author,),
+                    )
+            except Exception as e:
+                print(f"Error while checking {author}: {e}")
 
-        print(f"Checking for Django's welcome message on PR #{pr_number} by {author}")
-
-        try:
-            # Get all comments/reviews on the PR
-            command = (
-                f"gh pr view {pr_number} --repo django/django --json comments,reviews"
-            )
-            result = send_command(command)
-
-            is_first_timer = False
-
-            # Check comments for GitHub Actions bot
-            for comment in result.get("comments", []):
-                author_login = comment.get("author", {}).get("login", "")
-                body = comment.get("body", "")
-
-                # Look for Django's actual pr-message in comments
-                if (
-                    author_login == "github-actions[bot]"
-                    and pr_message
-                    and pr_message in body
-                ):
-                    is_first_timer = True
-                    print(f"Found Django's welcome message for {author}")
-                    break
-
-            # Also check reviews (the bot might comment as a review)
-            if not is_first_timer:
-                for review in result.get("reviews", []):
-                    author_login = review.get("author", {}).get("login", "")
-                    body = review.get("body", "")
-
-                    if (
-                        author_login == "github-actions[bot]"
-                        and pr_message
-                        and pr_message in body
-                    ):
-                        is_first_timer = True
-                        print(f"Found Django's welcome review for {author}")
-                        break
-
-            if is_first_timer:
-                first_timers.append(f"[{author}](https://github.com/{author})")
-            else:
-                print(f"No Django welcome message found for {author}")
-
-        except Exception as e:
-            print(f"Error checking {author}: {str(e)}")
-            # Fallback: don't include them if we can't verify
-
+        await db_connection.commit()
     return first_timers
 
 
@@ -250,14 +149,14 @@ def pr_modifies_release_files(pr_number):
     return False
 
 
-def generate_synopsis(merged_prs, first_timers, search_url):
+async def generate_synopsis(merged_prs, first_timers, search_url):
     unique_contributors = len({pr["author"]["login"] for pr in merged_prs})
     synopsis = (
         f"Last week we had [{len(merged_prs)} pull requests]({search_url}) merged into Django by "
         f"{unique_contributors} different contributors"
     )
     if first_timers:
-        contributors_with_names = get_full_name_contributors(first_timers)
+        contributors_with_names = await get_full_name_contributors(first_timers)
 
         # Format the contributors list with "and" before the last item
         if len(contributors_with_names) == 1:
@@ -338,14 +237,11 @@ async def fetch_django_pr_summary(db_connection, start_date, end_date):
 
     print(f"Fetching PRs merged from {start_date} to {end_date}...")
 
-    # Get Django welcome message for first-timer detection
-    pr_message = await get_django_welcome_message(db_connection)
-
     merged_prs = fetch_merged_prs(query)
 
-    first_timers = identify_first_timers(merged_prs, pr_message)
+    first_timers = await identify_first_timers(merged_prs, start_date, db_connection)
 
-    synopsis = generate_synopsis(
+    synopsis = await generate_synopsis(
         merged_prs,
         first_timers,
         search_url,

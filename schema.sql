@@ -52,6 +52,12 @@ CREATE TABLE IF NOT EXISTS applied_migrations (
     applied_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
+-- previous contributor table
+CREATE TABLE IF NOT EXISTS contributors (
+    id INTEGER PRIMARY KEY,
+    login TEXT NOT NULL
+);
+
 -- Performance indexes for volunteers table
 CREATE INDEX IF NOT EXISTS idx_volunteers_name ON volunteers(name);
 CREATE INDEX IF NOT EXISTS idx_volunteers_due_date ON volunteers(due_date);
@@ -67,3 +73,6 @@ CREATE INDEX IF NOT EXISTS idx_bot_state_key ON bot_state(key);
 -- Indexes for weekly_reports table
 CREATE INDEX IF NOT EXISTS idx_weekly_reports_dates ON weekly_reports(start_date, end_date);
 CREATE INDEX IF NOT EXISTS idx_weekly_reports_created ON weekly_reports(created_at);
+
+-- Indexes for contributors table
+CREATE INDEX IF NOT EXISTS idx_contributors_login ON contributors(login);
