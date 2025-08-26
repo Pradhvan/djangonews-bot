@@ -256,7 +256,9 @@ if __name__ == "__main__":
     log_file = "bot.log"
 
     file_handler = RotatingFileHandler(
-        log_file, maxBytes=10 * 1024 * 1024, backupCount=5  # 10MB
+        log_file,
+        maxBytes=10 * 1024 * 1024,
+        backupCount=5,  # 10MB
     )
     file_handler.setFormatter(logging.Formatter("%(message)s"))
 
