@@ -11,4 +11,5 @@ dependencies = [
     "discord-py>=2.5.2",
     "pygithub>=2.6.1",
     "python-dotenv>=1.1.0",
+    "structlog>=25.4.0",
 ]

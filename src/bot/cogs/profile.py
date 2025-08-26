@@ -132,7 +132,8 @@ class ProfileCog(commands.Cog):
         embed = discord.Embed(
             title="🌍 Update Your Timezone",
             description="Choose your timezone for accurate volunteer reminders:\\n\\n"
-            "💡 **Tip:** Use `!profile` for comprehensive profile management including volunteer name, social handle, and reminder times.",
+            "💡 **Tip:** Use `!profile` for comprehensive profile management including volunteer name, social handle, "
+            "and reminder times.",
             color=0x0C4B33,
         )
         embed.set_footer(text="💡 This affects when you receive volunteer reminders")

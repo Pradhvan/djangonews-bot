@@ -4,8 +4,11 @@ Date picker UI components for volunteer management
 
 import arrow
 import discord
+import structlog
 from discord import SelectOption
 from discord.ui import Select, View
+
+logger = structlog.get_logger()
 
 
 class DatePickerView(View):
@@ -145,6 +148,7 @@ class DatePickerView(View):
                     f"📝 You'll receive reminders as the date approaches.",
                     ephemeral=True,
                 )
+                logger.info(f"{user_name} choose to volunteer on: {formatted_date}")
             else:
                 await interaction.response.send_message(
                     f"✅ **Successfully unvolunteered!**\n"
@@ -159,7 +163,7 @@ class DatePickerView(View):
                 f"Please try again or contact an admin.",
                 ephemeral=True,
             )
-
+            logger.error(f"Error date picker action: {self.action} ")
         # Disable the view after use
         for item in self.children:
             item.disabled = True
@@ -281,6 +285,7 @@ class ConfirmUnvolunteerView(View):
                 f"💬 Please inform folks on django-news channel so others can pick it up.",
                 ephemeral=True,
             )
+            logger.info(f"{self.user_name} choose to unvolunteer on: {formatted_date}")
         else:
             await interaction.response.send_message(
                 f"❌ **Failed to unvolunteer from {formatted_date}**\n"
